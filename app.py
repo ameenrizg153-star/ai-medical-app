@@ -20,27 +20,18 @@ def check_password():
 
     def password_entered():
         """Checks whether a password entered by the user is correct."""
-          if st.session_state["password"] == "test1234":
+        if st.session_state["password"] == "test1234":
             st.session_state["password_correct"] = True
             del st.session_state["password"]  # don't store password
         else:
             st.session_state["password_correct"] = False
-
-    # Create a secrets.toml file locally with PASSWORD = "your_password"
-    # Or set it as a secret in Streamlit Cloud
-    # For our purpose, we will hardcode it for simplicity, but this is not recommended for production
-    try:
-        password_secret = st.secrets["PASSWORD"]
-    except:
-        # Fallback for local testing if secrets are not set
-        password_secret = "test1234"
-
 
     if "password_correct" not in st.session_state:
         # First run, show input for password.
         st.text_input(
             "Password", type="password", on_change=password_entered, key="password"
         )
+        st.write("Please enter the password `test1234` to proceed.")
         return False
     elif not st.session_state["password_correct"]:
         # Password not correct, show input + error.
@@ -60,27 +51,18 @@ st.set_page_config(page_title="AI Medical Assistant", layout="wide")
 if check_password():
 
     # The rest of your app goes here
-    MODEL_URL = "https://github.com/tulasiram58827/ocr_tflite/raw/main/models/keras_ocr_float16.tflite"
-    MODEL_LOCAL_PATH = "models/keras_ocr_float16.tflite"
+    st.title("🩺 AI Medical Assistant — Demo")
+    st.markdown("**Important:** This tool provides *preliminary* guidance only. Not a substitute for professional medical advice.")
 
-    normal_ranges = {
-        "glucose": (70, 140), "hemoglobin": (12, 17.5), "wbc": (4000, 11000),
-        "creatinine": (0.6, 1.3), "cholesterol": (125, 200),
-    }
+    st.sidebar.header("Settings")
+    use_local_ocr = st.sidebar.checkbox("Use Tesseract OCR", value=True, disabled=True)
+    
+    # We assume Tesseract is installed on Streamlit Community Cloud
+    # No need for tesseract_available() check here as it's provided.
+
+    tab1, tab2, tab3 = st.tabs(["Lab Tests (OCR)", "ECG Image (Placeholder)", "Symptom Checker (Placeholder)"])
 
     # ---------------- Helpers ----------------
-    @st.cache_resource
-    def download_model_if_missing(url=MODEL_URL, local_path=MODEL_LOCAL_PATH):
-        # This function is less relevant in a cloud environment but good practice
-        pass
-
-    def tesseract_available():
-        try:
-            pytesseract.get_tesseract_version()
-            return True
-        except Exception:
-            return False
-
     @st.cache_data
     def extract_text_from_image_pytesseract(img_bytes):
         try:
@@ -107,6 +89,10 @@ if check_password():
             return f"Error reading PDF: {e}"
 
     def analyze_text_simple(text):
+        normal_ranges = {
+            "glucose": (70, 140), "hemoglobin": (12, 17.5), "wbc": (4000, 11000),
+            "creatinine": (0.6, 1.3), "cholesterol": (125, 200),
+        }
         out = []
         t = text.lower()
         for key in normal_ranges:
@@ -129,17 +115,7 @@ if check_password():
             out.append({"note": "Possible infection / قد تكون هناك عدوى"})
         return out
 
-    # ------------- UI -------------
-    st.title("🩺 AI Medical Assistant — Demo")
-    st.markdown("**Important:** This tool provides *preliminary* guidance only. Not a substitute for professional medical advice.")
-
-    st.sidebar.header("Settings")
-    use_local_ocr = st.sidebar.checkbox("Use Tesseract OCR", value=True, disabled=True)
-    if not tesseract_available():
-        st.sidebar.error("Tesseract not found on server.")
-
-    tab1, tab2, tab3 = st.tabs(["Lab Tests (OCR)", "ECG Image (Placeholder)", "Symptom Checker (Placeholder)"])
-
+    # ------------- UI for Tabs -------------
     with tab1:
         st.header("Upload medical test (image or PDF)")
         uploaded_file = st.file_uploader("Upload file", type=["jpg", "jpeg", "png", "pdf"], key="lab")
@@ -188,4 +164,3 @@ if check_password():
 
     st.markdown("---")
     st.markdown("**Disclaimer:** This application provides preliminary information and suggestions only.")
-
