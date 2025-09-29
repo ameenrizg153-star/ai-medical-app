@@ -5,28 +5,24 @@ import streamlit as st
 from PIL import Image
 import pytesseract
 import requests
-import pandas as pd # Added for better display of results
+import pandas as pd
+import numpy as np # Required for mean calculation
 
 # --- Authentication ---
 def check_password():
-    """Returns `True` if the user had a correct password."""
     def password_entered():
-        if st.session_state["password"] == "test1234":
+        if st.session_state.get("password") == "test1234":
             st.session_state["password_correct"] = True
-            del st.session_state["password"]
+            if "password" in st.session_state: del st.session_state["password"]
         else:
             st.session_state["password_correct"] = False
-
-    if "password_correct" not in st.session_state:
-        st.text_input("Password", type="password", on_change=password_entered, key="password")
-        st.write("Please enter the password `test1234` to proceed.")
-        return False
-    elif not st.session_state["password_correct"]:
-        st.text_input("Password", type="password", on_change=password_entered, key="password")
-        st.error("😕 Password incorrect")
-        return False
-    else:
+    if st.session_state.get("password_correct", False):
         return True
+    st.text_input("Password", type="password", on_change=password_entered, key="password")
+    if "password_correct" in st.session_state and not st.session_state.password_correct:
+        st.error("😕 Password incorrect")
+    st.write("Please enter the password `test1234` to proceed.")
+    return False
 
 # ---------------- Config ----------------
 st.set_page_config(page_title="AI Medical Assistant", layout="wide")
@@ -35,76 +31,24 @@ st.set_page_config(page_title="AI Medical Assistant", layout="wide")
 if check_password():
     
     # --- Extensive Normal Ranges Database ---
-    # This dictionary is now much larger to recognize more tests.
-    # Normal ranges can vary by lab, age, and sex. These are general estimates.
     normal_ranges = {
-        # Complete Blood Count (CBC)
-        "wbc": (4.0, 11.0), "white blood cell": (4.0, 11.0),
+        # CBC
+        "wbc": (4.0, 11.0), "white blood cell": (4.0, 11.0), "pus cells": (0, 5),
         "rbc": (4.2, 5.9), "red blood cell": (4.2, 5.9),
         "hemoglobin": (13.5, 17.5), "hgb": (13.5, 17.5),
         "hematocrit": (40, 52), "hct": (40, 52),
-        "mcv": (80, 100),
-        "mch": (27, 33),
-        "mchc": (32, 36),
-        "rdw": (11.5, 14.5),
         "platelet": (150, 450), "plt": (150, 450),
-        "neutrophils": (40, 75),
-        "lymphocytes": (20, 45),
-        "monocytes": (2, 10),
-        "eosinophils": (1, 6),
-        "basophils": (0, 2),
-        "pus cells": (0, 5),
-
-        # Kidney Function
-        "creatinine": (0.6, 1.3),
-        "bun": (7, 20), "urea": (15, 45),
-        "uric acid": (3.5, 7.2),
-
-        # Liver Function
-        "ast": (10, 40), "sgot": (10, 40),
-        "alt": (7, 55), "sgpt": (7, 55),
-        "alp": (40, 130),
-        "total bilirubin": (0.1, 1.2),
-        "direct bilirubin": (0.0, 0.3),
-        "total protein": (6.0, 8.3),
-        "albumin": (3.5, 5.5),
-
-        # Lipid Profile
-        "total cholesterol": (125, 200), "cholesterol": (125, 200),
-        "triglycerides": (0, 150), "tg": (0, 150),
-        "hdl": (40, 60),
-        "ldl": (0, 100),
-
-        # Diabetes
-        "glucose": (70, 100), # Fasting glucose
-        "hba1c": (4.0, 5.6),
-
-        # Urine Analysis (Example values, often qualitative)
+        # Urine
         "specific gravity": (1.005, 1.030),
         "ph": (4.5, 8.0),
+        "protein": (0, 0), # Should be 0 or Negative
+        "glucose": (0, 0), # Should be 0 or Negative
+        "ketone": (0, 0), "acetone": (0, 0),
+        "bilirubin": (0, 0),
+        "urobilinogen": (0.2, 1.0),
+        "nitrite": (0, 0),
+        "hb (blood)": (0, 0),
     }
-
-    # --- AI Model Loading (Placeholder) ---
-    AI_MODEL_URL = "https://huggingface.co/your-username/your-repo/resolve/main/your_model.pkl?download=true" # IMPORTANT: Replace with your actual model URL
-
-    @st.cache_resource
-    def load_ai_model(url):
-        if url.startswith("https://huggingface.co"):
-            try:
-                # This is a placeholder for model loading logic
-                # For a real implementation, you'd use joblib, pickle, or tensorflow to load the model from the downloaded file
-                st.sidebar.success("AI Model placeholder loaded.")
-                # For example:
-                # from urllib.request import urlopen
-                # import joblib
-                # model_file = urlopen(url)
-                # model = joblib.load(model_file)
-                # return model
-                return "AI Model Ready" # Placeholder return
-            except Exception as e:
-                st.sidebar.error(f"AI Model Error: {e}")
-                return None
-        return None
 
     # --- Helper Functions ---
     @st.cache_data
@@ -115,105 +59,114 @@ if check_password():
         except Exception as e:
             return f"Error during OCR: {e}"
 
-    def analyze_text_simple(text):
-        # ... (The analysis function is now more powerful due to the larger dictionary)
-        # We will also make it more flexible
+    def analyze_text_smart(text):
+        """
+        A smarter analyzer that can handle ranges (e.g., "1-2"), 
+        qualitative results (e.g., "Negative"), and variations.
+        """
         results = []
         text_lower = text.lower()
-        
-        for key, (low, high) in normal_ranges.items():
-            # Flexible pattern to find the key and then a number
-            # It handles spaces, colons, and different cases
-            pattern = rf"\b{key.replace('.', r'\.')}\b\s*[:\-]*\s*([0-9]+\.?[0-9]*)"
-            match = re.search(pattern, text_lower)
-            
-            if match:
-                try:
-                    value = float(match.group(1))
-                    status = "Normal"
-                    if value < low: status = "Low"
-                    elif value > high: status = "High"
-                    
-                    results.append({
-                        "Test": key.replace("_", " ").title(),
-                        "Result": value,
-                        "Status": status,
-                        "Normal Range": f"{low} - {high}"
-                    })
-                except (ValueError, IndexError):
-                    continue
-        return results
+        lines = text_lower.split('\n')
 
-    def predict_with_model(data):
-        # This is a placeholder function.
-        # In a real scenario, you would preprocess the 'data' to match your model's input
-        # and then call model.predict(processed_data)
-        if ai_model:
-            st.subheader("🤖 AI Model Insights (Placeholder)")
-            st.info("Based on the analyzed values, the AI model suggests monitoring kidney and liver functions.")
-            st.warning("This is a simulated AI prediction.")
+        for key, (low, high) in normal_ranges.items():
+            # Search line by line for better context
+            for line in lines:
+                # Use flexible pattern to find the key
+                # This handles cases like (w.8.c) for wbc
+                search_key = key.replace("wbc", "w.b.c").replace("r.b.c", "r.b.c")
+                if re.search(r'\b' + re.escape(search_key) + r'\b', line):
+                    
+                    # --- Case 1: Find numerical values (including ranges) ---
+                    # Pattern to find numbers, ranges (1-2), or decimals (1.025)
+                    num_match = re.search(r'([0-9]+(?:\.[0-9]+)?)\s*-\s*([0-9]+(?:\.[0-9]+)?)', line) # For ranges like 1-2
+                    if not num_match:
+                        num_match = re.search(r'([0-9]+\.?[0-9]*)', line) # For single numbers
+
+                    if num_match:
+                        try:
+                            # If it's a range, take the average
+                            if len(num_match.groups()) == 2 and num_match.group(2):
+                                val1 = float(num_match.group(1))
+                                val2 = float(num_match.group(2))
+                                value = (val1 + val2) / 2
+                                result_str = f"{val1}-{val2}"
+                            else: # It's a single number
+                                value = float(num_match.group(1))
+                                result_str = str(value)
+
+                            status = "Normal"
+                            if value < low: status = "Low"
+                            elif value > high: status = "High"
+                            
+                            results.append({
+                                "Test": key.title(), "Result": result_str,
+                                "Status": status, "Normal Range": f"{low} - {high}"
+                            })
+                            break # Move to the next key once found
+                        except (ValueError, IndexError):
+                            continue
+                    
+                    # --- Case 2: Find qualitative results ---
+                    qual_match = re.search(r'(negative|nil|normal|clear|acidic|yellow)', line)
+                    if qual_match:
+                        result_str = qual_match.group(1).title()
+                        status = "Normal" # Assume these are normal
+                        # For PH, acidic is normal
+                        if key == 'ph' and result_str == 'Acidic':
+                            status = "Normal"
+                        
+                        results.append({
+                            "Test": key.title(), "Result": result_str,
+                            "Status": status, "Normal Range": "Qualitative"
+                        })
+                        break # Move to the next key
+            
+        # Remove duplicates (if any)
+        unique_results = [dict(t) for t in {tuple(d.items()) for d in results}]
+        return unique_results
+
 
     # ------------- UI -------------
-    st.title("🩺 AI Medical Assistant v2.0")
-    
-    # --- Sidebar ---
+    st.title("🩺 AI Medical Assistant v3.0 (Smart Analyzer)")
     st.sidebar.header("Settings")
-    st.sidebar.info("This app uses OCR to extract lab results and provides a simple analysis.")
     hide_image = st.sidebar.checkbox("Hide image after analysis", value=True)
-    use_ai_model = st.sidebar.checkbox("Enable AI Model Analysis")
-    
-    ai_model = None
-    if use_ai_model:
-        ai_model = load_ai_model(AI_MODEL_URL)
 
-    # --- Main Uploader Tab ---
     st.header("Upload Medical Test (Image)")
     uploaded_file = st.file_uploader("Upload an image of your lab report", type=["jpg", "jpeg", "png"])
 
     if uploaded_file:
-        file_bytes = uploaded_file.getvalue()
-        
-        # We use a session state to "remember" the analysis result
         if "analysis_done" not in st.session_state:
             st.session_state.analysis_done = False
 
         if not st.session_state.analysis_done:
-            st.image(file_bytes, caption="Uploaded Image", use_column_width=True)
+            st.image(uploaded_file, caption="Uploaded Image", use_column_width=True)
 
         if st.button("Start Analysis", key="start_lab"):
             st.session_state.analysis_done = True
             with st.spinner("Reading text from image..."):
-                extracted_text = extract_text_from_image(file_bytes)
+                extracted_text = extract_text_from_image(uploaded_file.getvalue())
 
             if "Error" in extracted_text:
                 st.error(extracted_text)
             else:
                 if not hide_image:
-                    st.image(file_bytes, caption="Uploaded Image", use_column_width=True)
+                    st.image(uploaded_file, caption="Uploaded Image", use_column_width=True)
                 
                 st.subheader("📄 Extracted Text")
                 st.text_area("Full text from report", extracted_text, height=200)
                 
-                with st.spinner("Analyzing values..."):
-                    analysis_results = analyze_text_simple(extracted_text)
+                with st.spinner("Analyzing values with Smart Analyzer..."):
+                    analysis_results = analyze_text_smart(extracted_text)
                     
                     if analysis_results:
-                        st.subheader("📊 Analysis Results")
+                        st.subheader("📊 Smart Analysis Results")
                         df = pd.DataFrame(analysis_results)
-                        
-                        # Color the status column for better readability
                         def color_status(val):
                             color = 'green' if val == 'Normal' else 'red' if val in ['High', 'Low'] else 'black'
                             return f'color: {color}'
-                        
                         st.dataframe(df.style.applymap(color_status, subset=['Status']), use_container_width=True)
-
-                        # AI Model Prediction (if enabled)
-                        if use_ai_model and ai_model:
-                            predict_with_model(df)
-
                     else:
-                        st.warning("No recognizable lab values were found. The OCR might have misread the text or the tests are not in the database.")
+                        st.warning("No recognizable lab values were found.")
 
     st.markdown("---")
-    st.markdown("**Disclaimer:** This is a demonstration tool and not a substitute for professional medical advice.")
+    st.markdown("**Disclaimer:** This is a demonstration tool.")
