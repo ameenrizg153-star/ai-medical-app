@@ -1,358 +1,301 @@
-# app.py
-from flask import Flask, request, render_template_string, redirect, url_for
+import streamlit as st
+import re
+import io
 from PIL import Image
 import pytesseract
 import pdfplumber
-import re
-import os
-import io
-import json
-import datetime
+import pandas as pd
 
-# optional OpenAI usage (only if installed and API key set)
-try:
-    import openai
-    OPENAI_AVAILABLE = True
-except Exception:
-    openai = None
-    OPENAI_AVAILABLE = False
-
-app = Flask(__name__)
-
-# ---------------------------
-# Basic config & disclaimer
-# ---------------------------
-APP_NAME = "Smart Medical Analyzer"
-DISCLAIMER = (
-    "This tool provides preliminary, non-diagnostic information only. "
-    "It does NOT replace a medical professional. If symptoms are serious, "
-    "seek medical attention immediately."
-)
-AR_DISCLAIMER = (
-    "هذه الأداة تقدم معلومات أولية غير تشخيصية فقط. لا تغني عن استشارة الطبيب. "
-    "إذا كانت الأعراض خطيرة، راجع الطبيب فورًا."
+# --- إعدادات الصفحة ---
+st.set_page_config(
+    page_title="AI Medical Analyzer",
+    page_icon="🩺",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# ---------------------------
-# Large normal ranges (>=100 entries by auto-adding placeholders)
-# ---------------------------
+# --- قاموس الفحوصات والنطاقات الطبيعية (قاعدة بيانات موسعة) ---
 NORMAL_RANGES = {
-    "glucose": (70, 140), "hba1c": (4.0, 5.6), "cholesterol": (125, 200),
-    "triglycerides": (0, 150), "hdl": (40, 60), "ldl": (0, 100),
-    "hemoglobin": (12, 17.5), "hematocrit": (36, 50), "wbc": (4000, 11000),
-    "rbc": (4.0, 6.0), "mcv": (80, 100), "mch": (27, 33), "platelets": (150000, 450000),
-    "alt": (7, 56), "ast": (10, 40), "alp": (44, 147), "bilirubin_total": (0.1, 1.2),
-    "bilirubin_direct": (0, 0.3), "creatinine": (0.6, 1.3), "bun": (7, 20), "egfr": (90, 120),
-    "sodium": (135, 145), "potassium": (3.5, 5.0), "chloride": (98, 107), "co2": (23, 29),
-    "calcium": (8.6, 10.3), "magnesium": (1.7, 2.2), "phosphorus": (2.5, 4.5),
-    "iron": (60, 170), "ferritin": (20, 300), "tsh": (0.4, 4.0), "ft4": (0.8, 1.8),
-    "ft3": (2.3, 4.2), "vitamin_d": (20, 50), "vitamin_b12": (190, 950),
-    "crp": (0, 10), "esr": (0, 20), "troponin": (0, 0.04), "ck_mb": (0, 5), "nt_pro_bnp": (0, 125),
-    "pt": (11, 13.5), "inr": (0.8, 1.2), "aptt": (25, 35), "albumin": (3.5, 5.0),
-    "total_protein": (6.0, 8.3), "uric_acid": (3.4, 7.0), "psa": (0, 4.0), "ca125": (0, 35),
-    "cea": (0, 3.0), "ldh": (140, 280), "gamma_gt": (9, 48), "cortisol": (6, 23),
-    "amh": (1.0, 10.0), "procalcitonin": (0, 0.5),
-    # Add a big set of plausible test keys; fill to >=110 with placeholders:
+    # فحوصات الدم الشاملة (CBC)
+    "wbc": {"range": (4000, 11000), "unit": "cells/mcL", "name_ar": "كريات الدم البيضاء"},
+    "rbc": {"range": (4.0, 6.0), "unit": "mil/mcL", "name_ar": "كريات الدم الحمراء"},
+    "hemoglobin": {"range": (12.0, 17.5), "unit": "g/dL", "name_ar": "الهيموغلوبين"},
+    "hematocrit": {"range": (36, 50), "unit": "%", "name_ar": "الهيماتوكريت"},
+    "platelets": {"range": (150000, 450000), "unit": "cells/mcL", "name_ar": "الصفائح الدموية"},
+    "mcv": {"range": (80, 100), "unit": "fL", "name_ar": "متوسط حجم الكرية"},
+    "mch": {"range": (27, 33), "unit": "pg", "name_ar": "متوسط هيموغلوبين الكرية"},
+    "mchc": {"range": (32, 36), "unit": "g/dL", "name_ar": "تركيز هيموغلوبين الكرية"},
+    "rdw": {"range": (11.5, 14.5), "unit": "%", "name_ar": "عرض توزيع كريات الدم الحمراء"},
+
+    # كيمياء الدم (Metabolic Panel)
+    "glucose": {"range": (70, 140), "unit": "mg/dL", "name_ar": "الجلوكوز (السكر)"},
+    "bun": {"range": (7, 20), "unit": "mg/dL", "name_ar": "نيتروجين يوريا الدم"},
+    "creatinine": {"range": (0.6, 1.3), "unit": "mg/dL", "name_ar": "الكرياتينين"},
+    "sodium": {"range": (135, 145), "unit": "mEq/L", "name_ar": "الصوديوم"},
+    "potassium": {"range": (3.5, 5.0), "unit": "mEq/L", "name_ar": "البوتاسيوم"},
+    "chloride": {"range": (98, 107), "unit": "mEq/L", "name_ar": "الكلوريد"},
+    "calcium": {"range": (8.6, 10.3), "unit": "mg/dL", "name_ar": "الكالسيوم"},
+    "total_protein": {"range": (6.0, 8.3), "unit": "g/dL", "name_ar": "البروتين الكلي"},
+    "albumin": {"range": (3.5, 5.0), "unit": "g/dL", "name_ar": "الألبومين"},
+
+    # وظائف الكبد (Liver Panel)
+    "ast": {"range": (10, 40), "unit": "U/L", "name_ar": "إنزيم AST"},
+    "alt": {"range": (7, 56), "unit": "U/L", "name_ar": "إنزيم ALT"},
+    "alp": {"range": (44, 147), "unit": "U/L", "name_ar": "إنزيم ALP"},
+    "bilirubin_total": {"range": (0.1, 1.2), "unit": "mg/dL", "name_ar": "البيليروبين الكلي"},
+
+    # دهنيات الدم (Lipid Panel)
+    "cholesterol": {"range": (0, 200), "unit": "mg/dL", "name_ar": "الكوليسترول الكلي"},
+    "triglycerides": {"range": (0, 150), "unit": "mg/dL", "name_ar": "الدهون الثلاثية"},
+    "hdl": {"range": (40, 60), "unit": "mg/dL", "name_ar": "الكوليسترول الجيد"},
+    "ldl": {"range": (0, 100), "unit": "mg/dL", "name_ar": "الكوليسترول الضار"},
+
+    # فحوصات الغدة الدرقية (Thyroid)
+    "tsh": {"range": (0.4, 4.0), "unit": "mIU/L", "name_ar": "الهرمون المنبه للغدة الدرقية"},
+    "ft4": {"range": (0.8, 1.8), "unit": "ng/dL", "name_ar": "الثيروكسين الحر"},
+    "ft3": {"range": (2.3, 4.2), "unit": "pg/mL", "name_ar": "ثلاثي يودوثيرونين الحر"},
+
+    # فحوصات البول (Urinalysis)
+    "ph": {"range": (4.5, 8.0), "unit": "", "name_ar": "حموضة البول (pH)"},
+    "specific_gravity": {"range": (1.005, 1.030), "unit": "", "name_ar": "الكثافة النوعية للبول"},
+    "pus_cells": {"range": (0, 5), "unit": "/HPF", "name_ar": "خلايا الصديد (Pus)"},
+    "rbc_urine": {"range": (0, 2), "unit": "/HPF", "name_ar": "كريات الدم الحمراء (بول)"},
 }
 
-# auto-extend to reach ~110 keys (placeholders)
-idx = 1
-while len(NORMAL_RANGES) < 110:
-    NORMAL_RANGES[f"extra_test_{idx}"] = (0, 100)
-    idx += 1
-
-# ---------------------------
-# Aliases (editable)
-# ---------------------------
+# --- الأسماء البديلة للفحوصات (Aliases) ---
 ALIASES = {
     "blood sugar": "glucose", "sugar": "glucose", "hb": "hemoglobin",
-    "wbc count": "wbc", "platelet count": "platelets", "creatinine level": "creatinine"
+    "wbc count": "wbc", "platelet count": "platelets", "creatinine level": "creatinine",
+    "pus cells (w.b.c)": "pus_cells", "pus cell": "pus_cells", "pus": "pus_cells",
+    "r.b.c": "rbc_urine", "sg": "specific_gravity"
 }
 
-# ---------------------------
-# Basic diagnosis guidelines (local rule-based)
-# ---------------------------
+# --- التشخيص الأولي المعتمد على القواعد ---
 DIAGNOSIS_GUIDELINES = {
     "hemoglobin": {
-        "low": {"en":"Possible anemia. Recommend iron/B12 tests.", "ar":"قد يدل على فقر دم. ينصح بفحوصات الحديد وB12."},
-        "high": {"en":"May indicate dehydration or polycythemia. See doctor.", "ar":"قد يدل على الجفاف أو كثرة كريات الدم الحمراء. راجع الطبيب."}
+        "low": {"en": "Possible anemia. Consider iron/B12 tests.", "ar": "قد يدل على فقر دم. ينصح بفحوصات الحديد وفيتامين B12."},
+        "high": {"en": "May indicate dehydration or polycythemia.", "ar": "قد يدل على الجفاف أو كثرة كريات الدم الحمراء. راجع الطبيب."}
     },
     "glucose": {
-        "low": {"en":"Low blood sugar — risk of hypoglycemia.", "ar":"انخفاض سكر الدم — خطر نقص السكر."},
-        "high": {"en":"High blood sugar — consider diabetes screening.", "ar":"ارتفاع سكر الدم — فكر بفحص السكري."}
+        "low": {"en": "Low blood sugar (hypoglycemia).", "ar": "انخفاض سكر الدم (هبوط السكر)."},
+        "high": {"en": "High blood sugar (hyperglycemia). Consider diabetes screening.", "ar": "ارتفاع سكر الدم. يجب متابعة فحص السكري."}
     },
     "wbc": {
-        "low": {"en":"Low WBC — possible bone marrow issue or viral infection.", "ar":"انخفاض الكريات البيضاء — قد يدل على مشكلة أو عدوى فيروسية."},
-        "high": {"en":"High WBC — possible bacterial infection or inflammation.", "ar":"ارتفاع الكريات البيضاء — احتمال التهاب أو عدوى بكتيرية."}
+        "low": {"en": "Low white blood cells (leukopenia). May indicate a viral infection or bone marrow issue.", "ar": "انخفاض كريات الدم البيضاء. قد يدل على عدوى فيروسية أو مشكلة في نخاع العظم."},
+        "high": {"en": "High white blood cells (leukocytosis). Suggests a possible bacterial infection or inflammation.", "ar": "ارتفاع كريات الدم البيضاء. يشير إلى احتمال وجود عدوى بكتيرية أو التهاب."}
+    },
+    "pus_cells": {
+        "high": {"en": "High pus cells in urine. Strongly suggests a urinary tract infection (UTI).", "ar": "ارتفاع خلايا الصديد في البول. يشير بقوة إلى وجود التهاب في المسالك البولية."}
+    },
+    "creatinine": {
+        "high": {"en": "High creatinine. May indicate a kidney function problem.", "ar": "ارتفاع الكرياتينين. قد يشير إلى وجود مشكلة في وظائف الكلى."}
+    },
+    "alt": {
+        "high": {"en": "Elevated ALT. May indicate liver inflammation or damage.", "ar": "ارتفاع إنزيم ALT. قد يشير إلى وجود التهاب أو ضرر في الكبد."}
+    },
+    "ast": {
+        "high": {"en": "Elevated AST. May indicate liver or muscle damage.", "ar": "ارتفاع إنزيم AST. قد يشير إلى وجود ضرر في الكبد أو العضلات."}
     }
-    # can add more entries...
 }
 
-# ---------------------------
-# Simple rule-based consultation KB
-# ---------------------------
+# --- قاعدة المعرفة للاستشارة الطبية ---
 RULE_KB = {
-    "fever": {"conds": {"Infection": 0.8, "Flu": 0.6}, "advice": ["Measure temperature regularly", "Stay hydrated"]},
-    "cough": {"conds": {"Bronchitis": 0.5, "COVID/Flu": 0.6}, "advice": ["Watch for shortness of breath", "See doctor if bloody sputum"]},
-    "chest pain": {"conds": {"Cardiac": 0.9, "GERD": 0.3}, "advice": ["Seek emergency care if severe"]},
-    "headache": {"conds": {"Migraine": 0.6, "Tension headache":0.4}, "advice": ["Rest, hydrate, consider analgesic"]},
-    "dizziness": {"conds": {"Dehydration":0.6, "Vertigo":0.4}, "advice": ["Sit/lie down, hydrate"]},
+    "fever": {"conds": {"Infection": 0.8, "Flu": 0.6}, "advice_ar": ["قس درجة الحرارة بانتظام", "حافظ على رطوبة الجسم (اشرب سوائل)"]},
+    "cough": {"conds": {"Bronchitis": 0.5, "COVID/Flu": 0.6}, "advice_ar": ["انتبه لضيق التنفس", "راجع الطبيب إذا كان هناك دم في البلغم"]},
+    "chest pain": {"conds": {"Cardiac": 0.9, "GERD": 0.3}, "advice_ar": ["اطلب الرعاية الطارئة فورًا إذا كان الألم شديدًا"]},
+    "headache": {"conds": {"Migraine": 0.6, "Tension headache": 0.4}, "advice_ar": ["ارتح، اشرب سوائل، وفكر في تناول مسكن للألم"]},
+    "dizziness": {"conds": {"Dehydration": 0.6, "Vertigo": 0.4}, "advice_ar": ["اجلس أو استلقِ، واشرب سوائل"]},
+    "stomach pain": {"conds": {"Gastritis": 0.7, "Food Poisoning": 0.5}, "advice_ar": ["تجنب الأطعمة الدسمة", "راجع الطبيب إذا استمر الألم أو كان مصحوبًا بحمى"]},
 }
 
-# ---------------------------
-# Utilities: OCR & Text Extraction
-# ---------------------------
+# --- الدوال المساعدة ---
 
-def extract_text_from_image_file(file_stream) -> str:
+def extract_text_from_image(file_bytes):
     try:
-        img = Image.open(file_stream).convert("RGB")
+        img = Image.open(io.BytesIO(file_bytes))
+        text = pytesseract.image_to_string(img, lang='eng+ara')
+        return text, None
     except Exception as e:
-        return f"ERROR_OPEN_IMAGE: {e}"
-    # direct tesseract
-    try:
-        text = pytesseract.image_to_string(img, lang="eng+ara")
-    except Exception:
-        text = pytesseract.image_to_string(img)
-    return text or ""
+        return None, f"Error during OCR: {e}"
 
-def extract_text_from_pdf_file(file_stream) -> str:
+def extract_text_from_pdf(file_bytes):
     try:
         text = ""
-        with pdfplumber.open(file_stream) as pdf:
+        with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
             for page in pdf.pages:
-                t = page.extract_text()
-                if t:
-                    text += t + "\n"
-        return text
+                text += page.extract_text() or ""
+        return text, None
     except Exception as e:
-        return f"ERROR_PDF: {e}"
+        return None, f"Error reading PDF: {e}"
 
-# ---------------------------
-# Test extraction & analysis
-# ---------------------------
-def build_patterns():
-    patterns = []
-    for key in NORMAL_RANGES.keys():
-        # build name token: allow underscores or spaces
-        key_regex = re.escape(key).replace(r'\_', r'[_\s]*')
-        # add aliases
-        alt = [re.escape(k) for k,v in ALIASES.items() if v==key]
-        if alt:
-            key_regex = f"(?:{key_regex}|{'|'.join(alt)})"
-        pat = re.compile(rf"\b{key_regex}\b[\s:=]*([0-9]+(?:\.[0-9]+)?)", flags=re.IGNORECASE)
-        patterns.append((key, pat))
-    return patterns
-
-SEARCH_PATTERNS = build_patterns()
-
-def extract_tests_from_text(text: str):
-    found = []
-    if not text:
-        return found
-    lower = text.lower()
-    for key, pat in SEARCH_PATTERNS:
-        m = pat.search(lower)
-        if m:
+def analyze_text(text):
+    found_tests = []
+    text_lower = text.lower()
+    
+    # دمج القاموس الرئيسي مع الأسماء البديلة
+    search_dict = {**NORMAL_RANGES, **{alias: NORMAL_RANGES[key] for alias, key in ALIASES.items() if key in NORMAL_RANGES}}
+    
+    for key, details in NORMAL_RANGES.items():
+        # إنشاء تعبير نمطي مرن للبحث
+        aliases = [k for k, v in ALIASES.items() if v == key]
+        search_keys = [key] + aliases
+        
+        # تعديل للبحث عن الكلمات بشكل أكثر مرونة
+        pattern_keys = '|'.join([re.escape(k).replace('_', r'[\s_]*') for k in search_keys])
+        
+        # تعبير نمطي للبحث عن القيمة الرقمية بعد اسم الفحص
+        pattern = re.compile(rf'\b({pattern_keys})\b\s*[:\-=]*\s*([0-9]+(?:\.[0-9]+)?)', re.IGNORECASE)
+        
+        matches = pattern.finditer(text_lower)
+        
+        for match in matches:
             try:
-                val = float(m.group(1))
-            except:
-                continue
-            low, high = NORMAL_RANGES.get(key, (None, None))
-            if low is None:
-                continue
-            status = "Normal" if low <= val <= high else ("Low" if val < low else "High")
-            # get diagnosis
-            diag_info = DIAGNOSIS_GUIDELINES.get(key, {})
-            diag = diag_info.get(status.lower(), {})
-            found.append({
-                "test": key,
-                "value": val,
-                "status": status,
-                "normal_range": f"{low} - {high}",
-                "diagnosis_en": diag.get("en", "") or ("Value is within normal range." if status=="Normal" else ""),
-                "diagnosis_ar": diag.get("ar", "") or ( "القيمة ضمن النطاق الطبيعي." if status=="Normal" else "")
-            })
-    return found
+                value_str = match.group(2)
+                value = float(value_str)
+                
+                # تجنب النتائج المكررة
+                if any(d['test'] == key and d['value'] == value for d in found_tests):
+                    continue
 
-# ---------------------------
-# Consultation helpers
-# ---------------------------
+                low, high = details["range"]
+                status = "Normal"
+                if value < low:
+                    status = "Low"
+                elif value > high:
+                    status = "High"
+                
+                diag_info = DIAGNOSIS_GUIDELINES.get(key, {}).get(status.lower(), {})
+                
+                found_tests.append({
+                    "test_ar": details["name_ar"],
+                    "test_en": key,
+                    "value": value,
+                    "unit": details["unit"],
+                    "status": status,
+                    "normal_range": f"{low} - {high}",
+                    "diagnosis_ar": diag_info.get("ar", "القيمة ضمن النطاق الطبيعي." if status == "Normal" else "لا يوجد تفسير تلقائي لهذه النتيجة."),
+                })
+                break # نكتفي بأول نتيجة نجدها للفحص الواحد
+            except (ValueError, IndexError):
+                continue
+                
+    return found_tests
+
 def rule_based_consult(symptoms: str):
     txt = symptoms.lower()
     cond_scores = {}
     advices = set()
-    matched = []
+    matched_keywords = []
+
     for kw, info in RULE_KB.items():
         if kw in txt:
-            matched.append(kw)
+            matched_keywords.append(kw)
             for cond, w in info["conds"].items():
                 cond_scores[cond] = cond_scores.get(cond, 0) + w
-            for a in info["advice"]:
+            for a in info["advice_ar"]:
                 advices.add(a)
-    probable = sorted(cond_scores.items(), key=lambda x: x[1], reverse=True)
-    return {"matched": matched, "probable": probable, "advices": list(advices)}
+    
+    probable_conditions = sorted(cond_scores.items(), key=lambda x: x[1], reverse=True)
+    return {"matched": matched_keywords, "probable": probable_conditions, "advices": list(advices)}
 
-def openai_consult(symptoms: str):
-    # requires OPENAI_API_KEY set in env
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key or not OPENAI_AVAILABLE:
-        return {"error": "OpenAI not configured or package not installed."}
-    openai.api_key = api_key
-    prompt = f"""You are a medical assistant. The patient reports: {symptoms}
-Provide a short JSON with keys: probable_conditions (list of {"condition","confidence"}),
-red_flags (list of strings), initial_advice (list of strings), recommendation (string).
-Answer concisely."""
-    try:
-        resp = openai.ChatCompletion.create(
-            model="gpt-4o-mini" if hasattr(openai, "ChatCompletion") else "gpt-4",
-            messages=[{"role":"system","content":"You are a helpful medical assistant."},
-                      {"role":"user","content":prompt}],
-            temperature=0.3,
-            max_tokens=400
-        )
-        content = resp["choices"][0]["message"]["content"]
-        # try parse JSON block if returned
-        jmatch = re.search(r'(\{.*\})', content, flags=re.S)
-        if jmatch:
-            return json.loads(jmatch.group(1))
-        return {"raw": content}
-    except Exception as e:
-        return {"error": str(e)}
+# --- واجهة التطبيق ---
 
-# ---------------------------
-# Simple HTML template
-# ---------------------------
-HTML = """
-<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>{{app_name}}</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    body{font-family:Arial, Helvetica, sans-serif; margin:12px; background:#f7fbfb;}
-    .card{background:#fff;padding:12px;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,0.06); margin-bottom:12px;}
-    .ok{background:#e8f5e9;padding:6px;border-radius:6px;}
-    .high{background:#ffebee;padding:6px;border-radius:6px;}
-    .low{background:#fff8e1;padding:6px;border-radius:6px;}
-    .warn{color:#b71c1c;font-weight:700;}
-    textarea{width:100%;height:120px;border-radius:6px;padding:8px;}
-    input[type=file]{width:100%;}
-    .small{font-size:13px;color:#555;}
-  </style>
-</head>
-<body>
-  <h2>{{app_name}}</h2>
-  <div class="card small">{{disclaimer}}</div>
+st.title("🩺 المحلل الطبي الذكي")
+st.markdown("أداة لتحليل تقارير الفحوصات الطبية وتقديم استشارة أولية. **هذه الأداة لا تغني عن استشارة الطبيب.**")
 
-  <div class="card">
-    <h3>1) Upload report (image or PDF)</h3>
-    <form method="post" action="/" enctype="multipart/form-data">
-      <input type="file" name="report"><br><br>
-      <button type="submit">Extract & Analyze</button>
-    </form>
-  </div>
+# --- الشريط الجانبي ---
+st.sidebar.header("خيارات")
+app_mode = st.sidebar.selectbox("اختر الخدمة:", ["تحليل تقرير طبي", "استشارة حسب الأعراض"])
 
-  <div class="card">
-    <h3>2) Or paste report text manually</h3>
-    <form method="post" action="/analyze_text">
-      <textarea name="manual_text" placeholder="Paste OCR text or report text here..."></textarea><br>
-      <button type="submit">Analyze Text</button>
-    </form>
-  </div>
+if app_mode == "تحليل تقرير طبي":
+    st.sidebar.subheader("رفع تقرير")
+    uploaded_file = st.sidebar.file_uploader("ارفع صورة أو ملف PDF للتقرير الطبي", type=["png", "jpg", "jpeg", "pdf"])
+    
+    st.header("🔬 تحليل تقرير الفحص الطبي")
 
-  <div class="card">
-    <h3>3) Consultation / Symptoms</h3>
-    <form method="post" action="/consult">
-      <textarea name="symptoms" placeholder="Describe symptoms (Arabic or English)"></textarea><br>
-      <label><input type="checkbox" name="use_openai" value="1"> Use advanced AI (OpenAI) if configured</label><br><br>
-      <button type="submit">Get Consultation</button>
-    </form>
-  </div>
+    if uploaded_file:
+        file_bytes = uploaded_file.getvalue()
+        file_type = uploaded_file.type
+        text = None
+        error = None
 
-  {% if extracted_text %}
-  <div class="card">
-    <h3>Extracted Text</h3>
-    <pre style="white-space:pre-wrap;">{{extracted_text}}</pre>
-  </div>
-  {% endif %}
+        with st.spinner("جاري قراءة وتحليل الملف..."):
+            if "pdf" in file_type:
+                text, error = extract_text_from_pdf(file_bytes)
+            else:
+                text, error = extract_text_from_image(file_bytes)
 
-  {% if tests %}
-  <div class="card">
-    <h3>Detected Tests</h3>
-    {% for t in tests %}
-      <div class="{% if t.status=='Normal' %}ok{% elif t.status=='High' %}high{% else %}low{% endif %}" style="margin-bottom:8px;">
-        <b>{{t.test}}</b>: {{t.value}} — <i>{{t.status}}</i><br>
-        <small>Range: {{t.normal_range}}</small><br>
-        <small>EN: {{t.diagnosis_en}}</small><br>
-        <small>AR: {{t.diagnosis_ar}}</small>
-      </div>
-    {% endfor %}
-  </div>
-  {% endif %}
+        if error:
+            st.error(f"حدث خطأ: {error}")
+        elif text:
+            st.subheader("النص المستخرج من التقرير:")
+            st.text_area("Full text from report", text, height=250)
 
-  {% if consult_result %}
-  <div class="card">
-    <h3>Consultation Result</h3>
-    <pre style="white-space:pre-wrap;">{{consult_result}}</pre>
-  </div>
-  {% endif %}
+            results = analyze_text(text)
 
-  <footer class="small" style="margin-top:20px;">
-    {{ts}} — Not a medical device. For diagnosis consult a licensed professional.
-  </footer>
-</body>
-</html>
-"""
+            if results:
+                st.subheader("📊 نتائج التحليل الذكي:")
+                
+                # تحويل النتائج إلى DataFrame للعرض
+                df_data = {
+                    "الفحص": [r["test_ar"] for r in results],
+                    "النتيجة": [f"{r['value']} {r['unit']}" for r in results],
+                    "الحالة": [r["status"] for r in results],
+                    "النطاق الطبيعي": [r["normal_range"] for r in results],
+                    "التفسير الأولي": [r["diagnosis_ar"] for r in results],
+                }
+                df = pd.DataFrame(df_data)
 
-# ---------------------------
-# Routes
-# ---------------------------
-@app.route("/", methods=["GET", "POST"])
-def index():
-    extracted_text = ""
-    tests = []
-    consult_result = None
-    if request.method == "POST":
-        f = request.files.get("report")
-        if not f or f.filename == "":
-            return render_template_string(HTML, app_name=APP_NAME, disclaimer=DISCLAIMER, extracted_text="", tests=[], consult_result=None, ts=str(datetime.datetime.now()))
-        fname = f.filename.lower()
-        if fname.endswith(".pdf"):
-            extracted_text = extract_text_from_pdf_file(f)
+                # تلوين الصفوف حسب الحالة
+                def color_status(row):
+                    if row['الحالة'] == 'High':
+                        return ['background-color: #ffebee'] * len(row)
+                    elif row['الحالة'] == 'Low':
+                        return ['background-color: #fff8e1'] * len(row)
+                    else:
+                        return [''] * len(row)
+
+                st.dataframe(df.style.apply(color_status, axis=1), use_container_width=True)
+
+            else:
+                st.warning("لم يتم العثور على قيم فحوصات واضحة باستخدام المحلل البسيط.")
         else:
-            extracted_text = extract_text_from_image_file(f)
-        tests = extract_tests_from_text(extracted_text)
-    return render_template_string(HTML, app_name=APP_NAME, disclaimer=DISCLAIMER, extracted_text=extracted_text, tests=tests, consult_result=consult_result, ts=str(datetime.datetime.now()))
+            st.warning("لم يتم استخراج أي نص من الملف. قد تكون الصورة غير واضحة.")
 
-@app.route("/analyze_text", methods=["POST"])
-def analyze_text_route():
-    txt = request.form.get("manual_text", "")
-    tests = extract_tests_from_text(txt)
-    return render_template_string(HTML, app_name=APP_NAME, disclaimer=DISCLAIMER, extracted_text=txt, tests=tests, consult_result=None, ts=str(datetime.datetime.now()))
+elif app_mode == "استشارة حسب الأعراض":
+    st.header("💬 استشارة طبية أولية حسب الأعراض")
+    st.markdown("صف الأعراض التي تشعر بها (مثل: حمى وسعال وألم في الحلق)")
+    
+    symptoms = st.text_area("اكتب الأعراض هنا:", height=150)
+    
+    use_openai = st.checkbox("استخدام الذكاء الاصطناعي المتقدم (OpenAI - يتطلب إعداد)")
+    
+    if st.button("تحليل الأعراض"):
+        if symptoms:
+            with st.spinner("جاري تحليل الأعراض..."):
+                if use_openai:
+                    st.warning("ميزة OpenAI لم يتم تفعيلها بعد في هذه النسخة.")
+                    # في المستقبل، يمكن إضافة كود الاتصال بـ OpenAI هنا
+                else:
+                    consult_results = rule_based_consult(symptoms)
+                    st.subheader("نتائج التحليل الأولي:")
+                    
+                    if consult_results["probable"]:
+                        st.write("**الأمراض المحتملة (بناءً على القواعد البسيطة):**")
+                        for cond, score in consult_results["probable"]:
+                            st.write(f"- {cond} (درجة الاحتمال: {score:.1f})")
+                    
+                    if consult_results["advices"]:
+                        st.write("**نصائح أولية:**")
+                        for advice in consult_results["advices"]:
+                            st.write(f"- {advice}")
+                    
+                    if not consult_results["matched"]:
+                        st.warning("لم يتم التعرف على كلمات مفتاحية واضحة في الأعراض الموصوفة.")
+                    
+                    st.info("**تنبيه:** هذا التحليل هو مجرد اقتراح أولي بناءً على قواعد بسيطة ولا يغني إطلاقًا عن زيارة الطبيب للتشخيص الدقيق.")
+        else:
+            st.error("الرجاء إدخال الأعراض أولاً.")
 
-@app.route("/consult", methods=["POST"])
-def consult_route():
-    symptoms = request.form.get("symptoms", "").strip()
-    use_openai = request.form.get("use_openai") == "1"
-    consult_result = ""
-    if not symptoms:
-        consult_result = "Please provide symptoms."
-    else:
-        # First run local rule-based
-        rb = rule_based_consult(symptoms)
-        consult_result += "Rule-based suggestions:\n"
-        consult_result += json.dumps(rb, indent=2, ensure_ascii=False)
-        # Optionally call OpenAI if requested & configured
-        if use_openai:
-            oresp = openai_consult(symptoms)
-            consult_result += "\n\nOpenAI result:\n"
-            consult_result += json.dumps(oresp, indent=2, ensure_ascii=False)
-    return render_template_string(HTML, app_name=APP_NAME, disclaimer=DISCLAIMER, extracted_text=None, tests=None, consult_result=consult_result, ts=str(datetime.datetime.now()))
-
-# ---------------------------
-# Run server
-# ---------------------------
-if __name__ == "__main__":
-    # Bind to 0.0.0.0 so device can access from browser at 127.0.0.1
-    app.run(host="0.0.0.0", port=5000)
+st.sidebar.markdown("---")
+st.sidebar.info("تم التطوير بواسطة فريق Manus بالتعاون معك.")
