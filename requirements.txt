@@ -1,6 +1,10 @@
 streamlit
+pandas
 numpy
-Pillow
-pytesseract
-requests
 pdfplumber
+pdf2image
+pytesseract
+Pillow
+opencv-python-headless
+scikit-learn
+joblib
