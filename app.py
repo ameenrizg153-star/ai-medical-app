@@ -9,6 +9,7 @@ import cv2
 import numpy as np
 from pdf2image import convert_from_bytes
 import joblib
+import os
 
 # --- إعدادات الصفحة ---
 st.set_page_config(
@@ -17,6 +18,11 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# --- إصلاح المسارات لبيئة Streamlit Cloud ---
+# في بيئة لينكس، نحتاج أحيانًا لتحديد المسار يدويًا
+pytesseract.pytesseract.tesseract_cmd = 'tesseract'
+POPPLER_PATH = '/usr/bin' # المسار الشائع في بيئات لينكس
 
 # --- قاعدة بيانات الفحوصات ---
 NORMAL_RANGES = {
@@ -37,26 +43,46 @@ ALIASES = {
 # --- تحميل نموذج الذكاء ---
 @st.cache_resource
 def load_model():
+    # سنقوم بإنشاء ملف وهمي إذا لم يكن موجودًا
+    model_path = "symptom_checker_model.joblib"
+    if not os.path.exists(model_path):
+        st.warning("Model file not found. Creating a dummy model.")
+        # إنشاء نموذج وهمي بسيط (يمكن استبداله بنموذج حقيقي لاحقًا)
+        from sklearn.dummy import DummyClassifier
+        dummy_model = DummyClassifier(strategy="most_frequent")
+        # تدريب وهمي
+        dummy_model.fit([[0]], [0])
+        joblib.dump(dummy_model, model_path)
+        return dummy_model
+        
     try:
-        model = joblib.load("symptom_checker_model.joblib")
+        model = joblib.load(model_path)
         return model
-    except:
+    except Exception as e:
+        st.error(f"Error loading model: {e}")
         return None
 
 model = load_model()
 
 # --- معالجة الصورة قبل OCR ---
 def preprocess_image(img):
-    gray = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2GRAY)
-    _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)
-    return Image.fromarray(thresh)
+    try:
+        gray = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2GRAY)
+        # استخدام التنعيم لإزالة التشويش
+        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+        # استخدام عتبة متكيفة للحصول على نتائج أفضل مع إضاءة مختلفة
+        thresh = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+        return Image.fromarray(thresh)
+    except Exception as e:
+        st.warning(f"Could not preprocess image: {e}")
+        return img # إرجاع الصورة الأصلية في حالة حدوث خطأ
 
 # --- قراءة صورة ---
 def extract_text_from_image(file_bytes):
     try:
         img = Image.open(io.BytesIO(file_bytes))
-        img = preprocess_image(img)
-        text = pytesseract.image_to_string(img, lang="eng+ara")
+        img_processed = preprocess_image(img)
+        text = pytesseract.image_to_string(img_processed, lang="eng+ara")
         return text, None
     except Exception as e:
         return None, f"OCR Error: {e}"
@@ -66,19 +92,22 @@ def extract_text_from_pdf(file_bytes):
     texts = []
     errors = []
     try:
+        # محاولة قراءة النص مباشرة أولاً
         with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
             for page in pdf.pages:
                 page_text = page.extract_text()
                 if page_text:
                     texts.append(page_text)
 
-        if not texts:
-            pages = convert_from_bytes(file_bytes)
+        # إذا لم يتم العثور على نص، فهذا يعني أن الـ PDF هو صورة
+        if not texts or not "".join(texts).strip():
+            st.info("PDF seems to be an image. Converting pages to images for OCR...")
+            pages = convert_from_bytes(file_bytes, poppler_path=POPPLER_PATH)
             for i, page_img in enumerate(pages):
                 try:
-                    page_img = preprocess_image(page_img)
-                    txt = pytesseract.image_to_string(page_img, lang="eng+ara")
-                    texts.append(txt)
+                    page_img_processed = preprocess_image(page_img)
+                    txt = pytesseract.image_to_string(page_img_processed, lang="eng+ara")
+                    texts.append(f"\n--- OCR from Page {i+1} ---\n{txt}")
                 except Exception as e:
                     errors.append(f"Error OCR page {i+1}: {e}")
     except Exception as e:
@@ -95,11 +124,16 @@ def analyze_text(text):
     for key, details in NORMAL_RANGES.items():
         aliases = [k for k, v in ALIASES.items() if v == key]
         search_keys = [key] + aliases
-        pattern = re.compile(rf"\b({'|'.join(search_keys)})\b[:\-= ]*([0-9]+(?:\.[0-9]+)?)", re.IGNORECASE)
+        pattern = re.compile(rf"\b({'|'.join(search_keys)})\b\s*[:\-=]*\s*([0-9]+(?:\.[0-9]+)?)", re.IGNORECASE)
         matches = pattern.finditer(text_lower)
         for m in matches:
             try:
                 value = float(m.group(2))
+                
+                # تجنب النتائج المكررة
+                if any(d['الفحص'] == details["name_ar"] for d in results):
+                    continue
+
                 low, high = details["range"]
                 status = "Normal"
                 if value < low:
@@ -113,11 +147,14 @@ def analyze_text(text):
                     "الحالة": status,
                     "النطاق الطبيعي": f"{low}-{high}"
                 })
+                break # نكتفي بأول نتيجة للفحص
             except:
                 continue
     return results
 
 # --- واجهة ---
+st.title("🩺 المحلل الطبي الذكي (نسخة احترافية)")
+
 st.sidebar.header("📌 القائمة")
 mode = st.sidebar.radio("اختر الخدمة:", ["تحليل التقارير الطبية", "استشارة حسب الأعراض"])
 
@@ -125,32 +162,51 @@ if mode == "تحليل التقارير الطبية":
     st.header("🔬 تحليل تقرير طبي (PDF أو صورة)")
     uploaded_file = st.file_uploader("📂 ارفع ملف", type=["png","jpg","jpeg","pdf"])
     if uploaded_file:
-        file_bytes = uploaded_file.getvalue()
-        text, err = (extract_text_from_pdf(file_bytes) if "pdf" in uploaded_file.type
-                     else extract_text_from_image(file_bytes))
-        if err: st.error(err)
-        if text:
-            st.subheader("📄 النص المستخرج:")
-            st.text_area("Extracted Text", text, height=200)
-            results = analyze_text(text)
-            if results:
-                df = pd.DataFrame(results)
-                st.subheader("📊 نتائج التحليل:")
-                st.dataframe(df, use_container_width=True)
-                abnormal = df[df["الحالة"] != "Normal"]
-                if not abnormal.empty:
-                    st.error("⚠️ يوجد فحوصات غير طبيعية تحتاج متابعة طبية.")
+        with st.spinner("جاري التحليل... هذه العملية قد تستغرق بعض الوقت."):
+            file_bytes = uploaded_file.getvalue()
+            text, err = (extract_text_from_pdf(file_bytes) if "pdf" in uploaded_file.type
+                         else extract_text_from_image(file_bytes))
+            if err: st.error(err)
+            if text:
+                st.subheader("📄 النص المستخرج:")
+                st.text_area("Extracted Text", text, height=200)
+                results = analyze_text(text)
+                if results:
+                    df = pd.DataFrame(results)
+                    st.subheader("📊 نتائج التحليل:")
+                    
+                    def color_status(row):
+                        if row['الحالة'] == 'High':
+                            return ['background-color: #ffebee'] * len(row)
+                        elif row['الحالة'] == 'Low':
+                            return ['background-color: #fff8e1'] * len(row)
+                        else:
+                            return [''] * len(row)
+
+                    st.dataframe(df.style.apply(color_status, axis=1), use_container_width=True)
+                    
+                    abnormal = df[df["الحالة"] != "Normal"]
+                    if not abnormal.empty:
+                        st.error("⚠️ يوجد فحوصات غير طبيعية تحتاج متابعة طبية.")
+                else:
+                    st.warning("لم يتم التعرف على أي فحوصات في النص المستخرج.")
             else:
-                st.warning("لم يتم التعرف على أي فحوصات.")
+                st.warning("لم يتم استخراج أي نص من الملف. قد تكون الصورة غير واضحة أو الملف فارغًا.")
+
 elif mode == "استشارة حسب الأعراض":
     st.header("💬 استشارة أولية حسب الأعراض")
-    symptoms = st.text_area("📝 صف الأعراض:", height=150)
+    symptoms = st.text_area("📝 صف الأعراض هنا بالتفصيل:", height=150)
     if st.button("تحليل الأعراض"):
         if symptoms:
             if model:
-                st.success("✅ تم تحميل نموذج الذكاء.")
-                st.info("⚠️ مبدئيًا، النموذج يتنبأ بالحالة حسب البيانات المدخلة.")
+                st.success("✅ تم تحميل نموذج الذكاء بنجاح.")
+                # بما أن النموذج وهمي، سنعرض رسالة توضيحية
+                st.info("⚠️ هذا النموذج هو نموذج تجريبي. في المستقبل، سيتم استخدام الأعراض المدخلة للتنبؤ بالحالة الصحية.")
+                st.write(f"الأعراض المدخلة: {symptoms}")
             else:
-                st.warning("🚨 لم يتم العثور على نموذج الذكاء (symptom_checker_model.joblib).")
+                st.error("🚨 خطأ: لم يتم تحميل نموذج الذكاء (symptom_checker_model.joblib).")
         else:
-            st.warning("يرجى إدخال الأعراض.")
+            st.warning("يرجى إدخال الأعراض أولاً.")
+
+st.sidebar.markdown("---")
+st.sidebar.info("تم التطوير بواسطة فريق Manus بالتعاون مع المطور المبدع: أنت!")
