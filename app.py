@@ -130,20 +130,17 @@ def extract_text_from_pdf(file_bytes):
 
 def analyze_text(text):
     found_tests = []
+    if not text:
+        return found_tests
+        
     text_lower = text.lower()
     
-    # دمج القاموس الرئيسي مع الأسماء البديلة
-    search_dict = {**NORMAL_RANGES, **{alias: NORMAL_RANGES[key] for alias, key in ALIASES.items() if key in NORMAL_RANGES}}
-    
     for key, details in NORMAL_RANGES.items():
-        # إنشاء تعبير نمطي مرن للبحث
         aliases = [k for k, v in ALIASES.items() if v == key]
         search_keys = [key] + aliases
         
-        # تعديل للبحث عن الكلمات بشكل أكثر مرونة
-        pattern_keys = '|'.join([re.escape(k).replace('_', r'[\s_]*') for k in search_keys])
+        pattern_keys = '|'.join([re.escape(k).replace('_', r'[\s_.]*') for k in search_keys])
         
-        # تعبير نمطي للبحث عن القيمة الرقمية بعد اسم الفحص
         pattern = re.compile(rf'\b({pattern_keys})\b\s*[:\-=]*\s*([0-9]+(?:\.[0-9]+)?)', re.IGNORECASE)
         
         matches = pattern.finditer(text_lower)
@@ -154,7 +151,7 @@ def analyze_text(text):
                 value = float(value_str)
                 
                 # تجنب النتائج المكررة
-                if any(d['test'] == key and d['value'] == value for d in found_tests):
+                if any(d['test_en'] == key and d['value'] == value for d in found_tests):
                     continue
 
                 low, high = details["range"]
@@ -175,7 +172,7 @@ def analyze_text(text):
                     "normal_range": f"{low} - {high}",
                     "diagnosis_ar": diag_info.get("ar", "القيمة ضمن النطاق الطبيعي." if status == "Normal" else "لا يوجد تفسير تلقائي لهذه النتيجة."),
                 })
-                break # نكتفي بأول نتيجة نجدها للفحص الواحد
+                break 
             except (ValueError, IndexError):
                 continue
                 
@@ -236,7 +233,6 @@ if app_mode == "تحليل تقرير طبي":
             if results:
                 st.subheader("📊 نتائج التحليل الذكي:")
                 
-                # تحويل النتائج إلى DataFrame للعرض
                 df_data = {
                     "الفحص": [r["test_ar"] for r in results],
                     "النتيجة": [f"{r['value']} {r['unit']}" for r in results],
@@ -246,7 +242,6 @@ if app_mode == "تحليل تقرير طبي":
                 }
                 df = pd.DataFrame(df_data)
 
-                # تلوين الصفوف حسب الحالة
                 def color_status(row):
                     if row['الحالة'] == 'High':
                         return ['background-color: #ffebee'] * len(row)
@@ -275,7 +270,6 @@ elif app_mode == "استشارة حسب الأعراض":
             with st.spinner("جاري تحليل الأعراض..."):
                 if use_openai:
                     st.warning("ميزة OpenAI لم يتم تفعيلها بعد في هذه النسخة.")
-                    # في المستقبل، يمكن إضافة كود الاتصال بـ OpenAI هنا
                 else:
                     consult_results = rule_based_consult(symptoms)
                     st.subheader("نتائج التحليل الأولي:")
