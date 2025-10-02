@@ -27,7 +27,6 @@ pytesseract.pytesseract.tesseract_cmd = 'tesseract'
 
 # --- قاعدة بيانات الفحوصات (القاموس الرئيسي) ---
 NORMAL_RANGES = {
-    # ... (نفس القاموس من الإصدار السابق، لا تغيير هنا)
     "wbc": {"range": (4.0, 11.0), "unit": "x10^9/L", "name_ar": "كريات الدم البيضاء", "icon": "⚪"},
     "rbc": {"range": (4.1, 5.7), "unit": "x10^12/L", "name_ar": "كريات الدم الحمراء", "icon": "🔴"},
     "hemoglobin": {"range": (13.0, 18.0), "unit": "g/dL", "name_ar": "الهيموغلوبين", "icon": "🩸"},
@@ -56,67 +55,34 @@ NORMAL_RANGES = {
 
 # --- قاموس الأسماء البديلة ---
 ALIASES = {
-    # ... (نفس القاموس من الإصدار السابق، لا تغيير هنا)
-    "hb": "hemoglobin", "hgb": "hemoglobin",
-    "pcv": "hematocrit", "hct": "hematocrit",
-    "t.wbc": "wbc", "w.b.c": "wbc", "wbc count": "wbc", "t.w.b.c": "wbc", "white blood cells": "wbc",
+    "hb": "hemoglobin", "hgb": "hemoglobin", "pcv": "hematocrit", "hct": "hematocrit",
+    "t.wbc": "wbc", "w.b.c": "wbc", "wbc count": "wbc", "white blood cells": "wbc",
     "rbc count": "rbc", "r.b.c": "rbc", "red blood cells": "rbc",
     "platelats": "platelets", "plt": "platelets", "platelet count": "platelets",
-    "neutrophil": "neutrophils", "neu": "neutrophils",
-    "lymphocyte": "lymphocytes", "lym": "lymphocytes",
-    "monocyte": "monocytes", "mono": "monocytes",
-    "eosinophil": "eosinophils", "eos": "eosinophils",
-    "basophil": "basophils", "baso": "basophils",
-    "blood sugar": "glucose", "sugar": "glucose", "fasting blood sugar": "glucose",
-    "uric acid": "uric_acid",
-    "cholesterol": "total_cholesterol", "total cholesterol": "total_cholesterol",
-    "trig": "triglycerides",
-    "hdl": "hdl_cholesterol", "hdl-c": "hdl_cholesterol",
-    "ldl": "ldl_cholesterol", "ldl-c": "ldl_cholesterol",
-    "sgot": "ast", "aspartate aminotransferase": "ast",
-    "sgpt": "alt", "alanine aminotransferase": "alt",
+    "neutrophil": "neutrophils", "neu": "neutrophils", "lymphocyte": "lymphocytes", "lym": "lymphocytes",
+    "monocyte": "monocytes", "mono": "monocytes", "eosinophil": "eosinophils", "eos": "eosinophils",
+    "basophil": "basophils", "baso": "basophils", "blood sugar": "glucose", "sugar": "glucose",
+    "uric acid": "uric_acid", "cholesterol": "total_cholesterol", "trig": "triglycerides",
+    "hdl": "hdl_cholesterol", "ldl": "ldl_cholesterol", "sgot": "ast", "sgpt": "alt",
 }
 
-# --- الخطوة 3: إضافة قاموس التوصيات الأولية ---
+# --- قاموس التوصيات الأولية ---
 RECOMMENDATIONS = {
-    "wbc": {
-        "Low": "قد يشير إلى ضعف المناعة أو عدوى فيروسية. يُنصح بمراجعة الطبيب.",
-        "High": "قد يشير إلى وجود عدوى بكتيرية أو التهاب في الجسم."
-    },
-    "hemoglobin": {
-        "Low": "قد يشير إلى فقر الدم (الأنيميا). يُنصح بزيادة مصادر الحديد وفيتامين B12.",
-        "High": "قد يكون بسبب التدخين أو العيش في المرتفعات. نادرًا ما يكون خطيرًا."
-    },
-    "platelets": {
-        "Low": "قد يزيد من خطر النزيف. يجب استشارة الطبيب لمعرفة السبب.",
-        "High": "قد يزيد من خطر تكوّن الجلطات. يجب استشارة الطبيب."
-    },
-    "glucose": {
-        "Low": "انخفاض سكر الدم. قد يسبب دوخة وإرهاق. يجب تناول شيء سكري.",
-        "High": "ارتفاع سكر الدم. قد يكون مؤشرًا على مرض السكري أو مقدماته."
-    },
-    "creatinine": {
-        "High": "قد يشير إلى وجود مشكلة في وظائف الكلى. ضروري مراجعة الطبيب."
-    },
-    "alt": {
-        "High": "قد يشير إلى وجود التهاب أو ضرر في خلايا الكبد."
-    },
-    "ast": {
-        "High": "قد يشير إلى ضرر في الكبد أو أعضاء أخرى مثل القلب أو العضلات."
-    },
-    "ldl_cholesterol": {
-        "High": "يُعرف بالكوليسترول 'الضار'. ارتفاعه يزيد من خطر أمراض القلب."
-    },
-    "hdl_cholesterol": {
-        "Low": "يُعرف بالكوليسترول 'الجيد'. انخفاضه قد يزيد من خطر أمراض القلب."
-    }
+    "wbc": {"Low": "قد يشير إلى ضعف المناعة أو عدوى فيروسية.", "High": "قد يشير إلى وجود عدوى بكتيرية أو التهاب."},
+    "hemoglobin": {"Low": "قد يشير إلى فقر الدم (الأنيميا).", "High": "قد يكون بسبب التدخين أو العيش في المرتفعات."},
+    "platelets": {"Low": "قد يزيد من خطر النزيف.", "High": "قد يزيد من خطر تكوّن الجلطات."},
+    "glucose": {"Low": "انخفاض سكر الدم قد يسبب دوخة وإرهاق.", "High": "ارتفاع سكر الدم قد يكون مؤشرًا على السكري."},
+    "creatinine": {"High": "قد يشير إلى وجود مشكلة في وظائف الكلى."},
+    "alt": {"High": "قد يشير إلى وجود التهاب أو ضرر في خلايا الكبد."},
+    "ast": {"High": "قد يشير إلى ضرر في الكبد أو أعضاء أخرى كالقلب."},
+    "ldl_cholesterol": {"High": "ارتفاعه يزيد من خطر أمراض القلب."},
+    "hdl_cholesterol": {"Low": "انخفاضه قد يزيد من خطر أمراض القلب."}
 }
 
-# --- دوال المعالجة والتحليل (مع التحديثات) ---
+# --- دوال المعالجة والتحليل ---
 
 @st.cache_resource
 def download_model(url=MODEL_URL, local_path=MODEL_LOCAL_PATH):
-    # ... (لا تغيير هنا)
     if local_path.exists(): return True
     local_path.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -129,29 +95,24 @@ def download_model(url=MODEL_URL, local_path=MODEL_LOCAL_PATH):
 
 @st.cache_resource
 def init_keras_ocr():
-    # ... (لا تغيير هنا)
     import keras_ocr
     return keras_ocr.pipeline.Pipeline()
 
 def run_keras_ocr(image, pipeline):
-    # ... (لا تغيير هنا)
     prediction_groups = pipeline.recognize([np.array(image)])
     return " ".join([pred[0] for pred in prediction_groups[0]])
 
 def extract_text_from_image(file_bytes, engine='pytesseract'):
-    # ... (لا تغيير هنا)
     try:
         img = Image.open(io.BytesIO(file_bytes))
         if engine == 'TFLite (أكثر دقة)':
             if download_model():
                 pipeline = init_keras_ocr()
-                text = run_keras_ocr(img, pipeline)
-                return text, None
+                return run_keras_ocr(img, pipeline), None
             else:
                 return None, "Could not use TFLite model."
         else:
-            text = pytesseract.image_to_string(img, lang="eng+ara")
-            return text, None
+            return pytesseract.image_to_string(img, lang="eng+ara"), None
     except Exception as e:
         return None, f"OCR Error: {e}"
 
@@ -168,20 +129,18 @@ def analyze_text(text):
         pattern_keys = '|'.join([re.escape(k).replace(r"\_", "_").replace(".", r"\.?") for k in search_keys])
         pattern = re.compile(rf"({pattern_keys})\s*[:\-=]*\s*([0-9]+(?:\.[0-9]+)?)\s*([a-zA-Z/µL^0-9]*)", re.IGNORECASE | re.DOTALL)
         
-        matches = pattern.finditer(text_lower)
-        for m in matches:
+        for m in pattern.finditer(text_lower):
             try:
                 value = float(m.group(2))
                 unit_found = m.group(3).strip().lower()
                 if key in processed_tests: continue
 
-                current_range = details["range"]
-                current_unit = details["unit"]
+                current_range, current_unit = details["range"], details["unit"]
                 
                 if 'alt_units' in details:
-                    for alt_unit_name, alt_unit_info in details['alt_units'].items():
-                        if alt_unit_name.lower() in unit_found:
-                            value = value / alt_unit_info['factor']
+                    for alt_unit, info in details['alt_units'].items():
+                        if alt_unit.lower() in unit_found:
+                            value /= info['factor']
                             break
 
                 low, high = current_range
@@ -189,17 +148,12 @@ def analyze_text(text):
                 if value < low: status = "Low"
                 elif value > high: status = "High"
 
-                # *** الجزء الجديد: إضافة التوصية ***
-                recommendation = ""
-                if status in ["Low", "High"]:
-                    recommendation = RECOMMENDATIONS.get(key, {}).get(status, "")
+                recommendation = RECOMMENDATIONS.get(key, {}).get(status, "")
 
                 results.append({
-                    "الفحص": f"{details['icon']} {details['name_ar']}",
-                    "القيمة": f"{m.group(2)} {unit_found}",
-                    "الحالة": status,
-                    "النطاق الطبيعي": f"{low} - {high} {current_unit}",
-                    "توصية أولية": recommendation # إضافة العمود الجديد
+                    "key": key, "name": f"{details['icon']} {details['name_ar']}",
+                    "value_str": f"{m.group(2)} {unit_found}", "status": status,
+                    "range_str": f"{low} - {high} {current_unit}", "recommendation": recommendation
                 })
                 processed_tests.add(key)
                 break 
@@ -207,18 +161,67 @@ def analyze_text(text):
                 continue
     return results
 
-def style_status(df):
-    def color_status(val):
-        color = 'white'
-        if 'Normal' in val: color = '#2E8B57'
-        elif 'Low' in val: color = '#DAA520' # لون أصفر أغمق
-        elif 'High' in val: color = '#DC143C'
-        return f'background-color: {color}; color: white; border-radius: 5px; text-align: center; padding: 5px;'
-    
-    # تطبيق التنسيق على عمود "الحالة" فقط
-    return df.style.apply(lambda s: s.map(color_status), subset=['الحالة'])
+# --- دوال الواجهة ---
 
-# --- واجهة التطبيق ---
+def get_status_indicator(status):
+    """Returns a colored HTML indicator based on the status."""
+    colors = {"Normal": "#2E8B57", "Low": "#DAA520", "High": "#DC143C"}
+    color = colors.get(status, "#808080")
+    return f"""
+    <div style="display: flex; align-items: center; margin-bottom: 10px;">
+        <div style="width: 12px; height: 12px; background-color: {color}; border-radius: 50%; margin-right: 8px;"></div>
+        <span style="color: {color}; font-weight: bold;">{status}</span>
+    </div>
+    """
+
+def display_results_as_cards(results):
+    """Displays analysis results in a card-based layout."""
+    st.subheader("📊 نتائج التحليل")
+    
+    # Custom CSS for cards
+    st.markdown("""
+    <style>
+    .result-card {
+        background-color: #f0f2f6;
+        border-radius: 10px;
+        padding: 15px;
+        margin-bottom: 10px;
+        border-left: 5px solid #007bff;
+    }
+    .result-card h4 {
+        margin-top: 0;
+        margin-bottom: 10px;
+        color: #003366;
+    }
+    .recommendation {
+        background-color: #e1ecf4;
+        border-radius: 5px;
+        padding: 10px;
+        margin-top: 10px;
+        font-size: 0.9em;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    for res in results:
+        with st.container():
+            st.markdown(f'<div class="result-card">', unsafe_allow_html=True)
+            st.markdown(f"<h4>{res['name']}</h4>", unsafe_allow_html=True)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown(f"**النتيجة:** {res['value_str']}")
+                st.markdown(f"**النطاق الطبيعي:** {res['range_str']}")
+            with col2:
+                st.markdown(get_status_indicator(res['status']), unsafe_allow_html=True)
+
+            if res["recommendation"]:
+                st.markdown(f"<div class='recommendation'>💡 **توصية أولية:** {res['recommendation']}</div>", unsafe_allow_html=True)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+            st.write("") # Adds a little space
+
+# --- واجهة التطبيق الرئيسية ---
 st.title("🩺 المحلل الطبي الذكي")
 st.markdown("---")
 
@@ -249,37 +252,28 @@ if mode == "تحليل التقارير الطبية":
             if err:
                 st.error(f"حدث خطأ أثناء قراءة الصورة: {err}")
             elif text:
-                st.subheader("📄 النص المستخرج من التقرير")
-                st.text_area("Extracted Text", text, height=150, help="هذا هو النص الذي تمكن الذكاء الاصطناعي من قراءته من الصورة.")
-                
                 results = analyze_text(text)
                 
                 if results:
-                    st.subheader("📊 نتائج التحليل")
-                    df = pd.DataFrame(results)
-                    
-                    # إعادة ترتيب الأعمدة لجعل التوصية في النهاية
-                    df = df[["الفحص", "القيمة", "الحالة", "النطاق الطبيعي", "توصية أولية"]]
-                    
-                    st.dataframe(style_status(df), use_container_width=True, height=len(df) * 38 + 38)
-                    
-                    # *** الجزء الجديد: إضافة ملاحظة هامة ***
+                    display_results_as_cards(results)
                     st.markdown("---")
                     st.warning(
                         "**⚠️ تنبيه هام:** هذه التوصيات هي لأغراض إرشادية فقط ولا تعتبر تشخيصًا طبيًا. "
-                        "النتائج يجب أن تُعرض على طبيب مختص لتفسيرها بشكل دقيق واتخاذ الإجراءات اللازمة."
+                        "يجب عرض النتائج على طبيب مختص لتفسيرها بشكل دقيق."
                     )
                 else:
                     st.warning("لم يتم التعرف على أي فحوصات مدعومة في النص المستخرج. قد تكون جودة الصورة منخفضة أو أن الفحوصات غير موجودة في قاعدة البيانات.")
+                
+                with st.expander("📄 عرض النص المستخرج من التقرير"):
+                    st.text_area("Extracted Text", text, height=150)
             else:
                 st.warning("لم يتمكن النظام من استخراج أي نص من الصورة. يرجى التأكد من وضوح الصورة.")
 
 elif mode == "استشارة حسب الأعراض (قريباً)":
     st.header("💬 استشارة أولية حسب الأعراض")
     st.info("هذه الميزة قيد التطوير حاليًا وسيتم إطلاقها قريبًا!")
-    symptoms = st.text_area("📝 صف الأعراض هنا بالتفصيل:", height=150, disabled=True)
-    if st.button("تحليل الأعراض", disabled=True):
-        pass
+    st.text_area("📝 صف الأعراض هنا بالتفصيل:", height=150, disabled=True)
+    st.button("تحليل الأعراض", disabled=True)
 
 st.sidebar.markdown("---")
 st.sidebar.info("تم التطوير بواسطة فريق Manus بالتعاون معك.")
