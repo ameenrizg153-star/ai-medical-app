@@ -14,14 +14,11 @@ import os
 from datetime import datetime
 from fpdf import FPDF
 
-# --- إعداد الصفحة ---
-st.set_page_config(page_title="AI Medical Analyzer", page_icon="🩺", layout="wide")
+st.set_page_config(page_title="AI Medical Analyzer", page_icon="馃┖", layout="wide")
 
-# --- مسارات وتهيئة tesseract (يمكن تعديل حسب النظام) ---
-# للمستخدمين في Streamlit Cloud قد يحتاج تعديل المسار
-pytesseract.pytesseract.tesseract_cmd = os.environ.get('TESSERACT_CMD', 'tesseract')
+# tesseract path (can be adjusted via env var)
+pytesseract.pytesseract.tesseract_cmd = os.environ.get("TESSERACT_CMD", "tesseract")
 
-# --- تحميل قاعدة الفحوصات من CSV ---
 @st.cache_data
 def load_tests_database(csv_path="tests_database.csv"):
     df = pd.read_csv(csv_path)
@@ -31,30 +28,27 @@ def load_tests_database(csv_path="tests_database.csv"):
     for _, row in df.iterrows():
         key = str(row["key"]).strip()
         try:
-            low = float(row["low"])
-            high = float(row["high"])
+            low = float(row["low"]) if pd.notna(row["low"]) else None
+            high = float(row["high"]) if pd.notna(row["high"]) else None
         except:
-            low = None
-            high = None
+            low = None; high = None
         tests[key] = {
             "range": (low, high) if low is not None and high is not None else None,
-            "unit": str(row.get("unit", "")),
+            "unit": str(row.get("unit","")),
             "name_ar": str(row.get("name_ar", key)),
             "name_en": str(row.get("name_en", key)),
-            "icon": str(row.get("icon", ""))
+            "icon": str(row.get("icon",""))
         }
-        # aliases
-        ali = str(row.get("aliases", ""))
+        ali = str(row.get("aliases",""))
         if pd.notna(ali) and ali.strip():
             for a in ali.split(";"):
                 aa = a.strip().lower()
                 if aa:
                     aliases[aa] = key
-        # recommendations
         rec = {}
-        if pd.notna(row.get("recommendation_low", "")) and str(row.get("recommendation_low", "")).strip():
+        if pd.notna(row.get("recommendation_low","")) and str(row.get("recommendation_low","")).strip():
             rec["Low"] = str(row.get("recommendation_low"))
-        if pd.notna(row.get("recommendation_high", "")) and str(row.get("recommendation_high", "")).strip():
+        if pd.notna(row.get("recommendation_high","")) and str(row.get("recommendation_high","")).strip():
             rec["High"] = str(row.get("recommendation_high"))
         if rec:
             recommendations[key] = rec
@@ -62,7 +56,6 @@ def load_tests_database(csv_path="tests_database.csv"):
 
 NORMAL_RANGES, ALIASES, RECOMMENDATIONS = load_tests_database()
 
-# --- تحميل نموذج محلي إن وُجد ---
 @st.cache_resource
 def load_model(path="symptom_checker_model.joblib"):
     if os.path.exists(path):
@@ -74,30 +67,25 @@ def load_model(path="symptom_checker_model.joblib"):
 
 MODEL = load_model()
 
-# ---------- دوال OCR ومعالجة الصور ----------
-
 def preprocess_image(img: Image.Image) -> Image.Image:
     try:
         arr = np.array(img.convert('RGB'))
         gray = cv2.cvtColor(arr, cv2.COLOR_RGB2GRAY)
         gray = cv2.GaussianBlur(gray, (3,3), 0)
-        thresh = cv2.adaptiveThreshold(gray,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                       cv2.THRESH_BINARY,11,2)
+        thresh = cv2.adaptiveThreshold(gray,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY,11,2)
         return Image.fromarray(thresh)
     except Exception:
         return img
-
 
 def extract_text_from_image(file_bytes):
     try:
         img = Image.open(io.BytesIO(file_bytes))
         img = preprocess_image(img)
-        custom_oem_psm_config = r'--oem 3 --psm 6'
-        text = pytesseract.image_to_string(img, lang='eng+ara', config=custom_oem_psm_config)
+        config = r'--oem 3 --psm 6'
+        text = pytesseract.image_to_string(img, lang='eng+ara', config=config)
         return text, None
     except Exception as e:
         return None, f"OCR Error: {e}"
-
 
 def extract_text_from_pdf(file_bytes):
     texts = []
@@ -108,7 +96,6 @@ def extract_text_from_pdf(file_bytes):
                 page_text = page.extract_text()
                 if page_text:
                     texts.append(page_text)
-        # OCR on pages as images (for scanned PDFs)
         pages = convert_from_bytes(file_bytes)
         for i, page_img in enumerate(pages):
             try:
@@ -120,9 +107,7 @@ def extract_text_from_pdf(file_bytes):
                 errors.append(f"Page {i+1} OCR error: {e}")
     except Exception as e:
         return None, f"PDF Error: {e}"
-    return "\n".join(texts), (errors if errors else None)
-
-# ---------- تحليل النص لاستخراج الفحوصات ----------
+    return "\\n".join(texts), (errors if errors else None)
 
 def analyze_text(text, prefer_language='ar'):
     results = []
@@ -132,11 +117,10 @@ def analyze_text(text, prefer_language='ar'):
     seen = set()
     for key, details in NORMAL_RANGES.items():
         search_keys = [key] + [k for k,v in ALIASES.items() if v==key]
-        # build pattern
         pat_keys = '|'.join([re.escape(k) for k in search_keys if k])
         if not pat_keys:
             continue
-        pattern = re.compile(rf"({pat_keys})\s*[:\-=]*\s*([0-9]+(?:\.[0-9]+)?)", re.IGNORECASE)
+        pattern = re.compile(rf"({pat_keys})\\s*[:\\-=]*\\s*([0-9]+(?:\\.[0-9]+)?)", re.IGNORECASE)
         for m in pattern.finditer(text_lower):
             try:
                 val = float(m.group(2))
@@ -157,16 +141,14 @@ def analyze_text(text, prefer_language='ar'):
             recommendation = rec.get(status, '')
             results.append({
                 'key': key,
-                'name': f"{details.get('icon','')} {display_name}",
+                'name': f\"{details.get('icon','')} {display_name}\",
                 'value': val,
                 'unit': details.get('unit',''),
                 'status': status,
-                'range_str': f"{rng[0]} - {rng[1]}" if rng else '',
+                'range_str': f\"{rng[0]} - {rng[1]}\" if rng else '',
                 'recommendation': recommendation
             })
     return results
-
-# ---------- تصدير التقارير ----------
 
 def create_excel_bytes(df: pd.DataFrame):
     buffer = io.BytesIO()
@@ -176,48 +158,43 @@ def create_excel_bytes(df: pd.DataFrame):
     buffer.seek(0)
     return buffer.getvalue()
 
-
-def create_pdf_report(extracted_text, results_df, notes=""):
+def create_pdf_report(extracted_text, results_df, notes=''):
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Arial", size=12)
-    pdf.cell(0, 8, "AI Medical Analyzer - تقرير التحليل", ln=True, align='C')
+    pdf.set_font('Arial', size=12)
+    pdf.cell(0, 8, 'AI Medical Analyzer - 鬲賯乇賷乇 丕賱鬲丨賱賷賱', ln=True, align='C')
     pdf.ln(4)
-    pdf.set_font("Arial", size=10)
-    pdf.cell(0, 6, f"التاريخ: {datetime.now().strftime('%Y-%m-%d %H:%M')}", ln=True)
+    pdf.set_font('Arial', size=10)
+    pdf.cell(0, 6, f'丕賱鬲丕乇賷禺: {datetime.now().strftime(\"%Y-%m-%d %H:%M\")}', ln=True)
     pdf.ln(4)
-    pdf.multi_cell(0,6, "النص المستخرج (مقتطف):")
+    pdf.multi_cell(0,6, '丕賱賳氐 丕賱賲爻鬲禺乇噩 (賲賯鬲胤賮):')
     pdf.multi_cell(0,6, extracted_text[:3000])
     pdf.ln(4)
-    pdf.multi_cell(0,6, "نتائج التحليل:")
+    pdf.multi_cell(0,6, '賳鬲丕卅噩 丕賱鬲丨賱賷賱:')
     pdf.ln(2)
-    pdf.set_font("Arial", size=9)
+    pdf.set_font('Arial', size=9)
     for _, row in results_df.iterrows():
-        pdf.multi_cell(0,6, f"{row['name']} - {row['value']} {row['unit']} - الحالة: {row['status']}")
+        pdf.multi_cell(0,6, f\"{row['name']} - {row['value']} {row['unit']} - 丕賱丨丕賱丞: {row['status']}\")
     if notes:
         pdf.ln(4)
-        pdf.multi_cell(0,6, f"ملاحظات المستخدم: {notes}")
+        pdf.multi_cell(0,6, f'賲賱丕丨馗丕鬲 丕賱賲爻鬲禺丿賲: {notes}')
     return pdf.output(dest='S').encode('latin-1')
 
-# ---------- الواجهة ----------
+st.title('馃┖ AI Medical Analyzer')
 
-st.title("🩺 AI Medical Analyzer")
-
-# sidebar
-st.sidebar.header("الإعدادات / Settings")
-lang = st.sidebar.selectbox("اللغة / Language", ['العربية','English'])
-prefer_lang = 'ar' if lang=='العربية' else 'en'
-
+st.sidebar.header('丕賱廿毓丿丕丿丕鬲 / Settings')
+lang = st.sidebar.selectbox('丕賱賱睾丞 / Language', ['丕賱毓乇亘賷丞','English'])
+prefer_lang = 'ar' if lang=='丕賱毓乇亘賷丞' else 'en'
 st.sidebar.markdown('---')
-api_key = st.sidebar.text_input('OpenAI API Key (اختياري - only for advanced chat)', type='password')
+api_key = st.sidebar.text_input('OpenAI API Key (丕禺鬲賷丕乇賷)', type='password')
 
-mode = st.sidebar.radio('اختر الخدمة / Mode', ['تحليل التقارير الطبية','Report Analysis','استشارة حسب الأعراض','Symptom Consultation'])
+mode = st.sidebar.radio('丕禺鬲乇 丕賱禺丿賲丞 / Mode', ['鬲丨賱賷賱 丕賱鬲賯丕乇賷乇 丕賱胤亘賷丞','Report Analysis','丕爻鬲卮丕乇丞 丨爻亘 丕賱兀毓乇丕囟','Symptom Consultation'])
 st.sidebar.markdown('---')
 
-if mode in ['تحليل التقارير الطبية','Report Analysis']:
-    st.header('🔬 تحليل تقرير طبي / Report Analysis')
-    uploaded = st.file_uploader('📂 ارفع ملف (صورة أو PDF) / Upload image or PDF', type=['png','jpg','jpeg','pdf'])
-    notes = st.text_area('ملاحظات إضافية (اختياري) / Notes (optional)', height=80)
+if mode in ['鬲丨賱賷賱 丕賱鬲賯丕乇賷乇 丕賱胤亘賷丞','Report Analysis']:
+    st.header('馃敩 鬲丨賱賷賱 鬲賯乇賷乇 胤亘賷 / Report Analysis')
+    uploaded = st.file_uploader('馃搨 丕乇賮毓 賲賱賮 (氐賵乇丞 兀賵 PDF) / Upload image or PDF', type=['png','jpg','jpeg','pdf'])
+    notes = st.text_area('賲賱丕丨馗丕鬲 廿囟丕賮賷丞 (丕禺鬲賷丕乇賷) / Notes (optional)', height=80)
     if uploaded:
         bytes_data = uploaded.getvalue()
         if uploaded.type=='application/pdf' or uploaded.name.lower().endswith('.pdf'):
@@ -228,18 +205,16 @@ if mode in ['تحليل التقارير الطبية','Report Analysis']:
             st.error(err)
         else:
             if text and text.strip():
-                st.subheader('النص المستخرج / Extracted text')
-                with st.expander('عرض النص / Show extracted text'):
+                st.subheader('丕賱賳氐 丕賱賲爻鬲禺乇噩 / Extracted text')
+                with st.expander('毓乇囟 丕賱賳氐 / Show extracted text'):
                     st.text_area('', text, height=300)
                 results = analyze_text(text, prefer_language= 'ar' if prefer_lang=='ar' else 'en')
                 if results:
                     df = pd.DataFrame(results)
-                    # ترتيب: High then Low then Normal
                     order = {'High':2,'Low':1,'Normal':0,'Unknown':-1}
                     df['rank'] = df['status'].map(order).fillna(-1)
                     df = df.sort_values(by='rank', ascending=False).drop(columns=['rank'])
-                    st.subheader('نتائج التحليل / Analysis Results')
-                    # تلوين
+                    st.subheader('賳鬲丕卅噩 丕賱鬲丨賱賷賱 / Analysis Results')
                     def style_rows(r):
                         if r['status']=='High':
                             return ['background-color: #ffebee']*len(r)
@@ -247,81 +222,46 @@ if mode in ['تحليل التقارير الطبية','Report Analysis']:
                             return ['background-color: #fff8e1']*len(r)
                         return ['']*len(r)
                     st.dataframe(df.style.apply(style_rows, axis=1), use_container_width=True)
-                    # عرض كروت
                     for r in results:
                         col1, col2 = st.columns([3,1])
                         with col1:
-                            st.markdown(f"**{r['name']}**: {r['value']} {r['unit']}")
+                            st.markdown(f\"**{r['name']}**: {r['value']} {r['unit']}\")
                             if r['recommendation']:
                                 st.info(r['recommendation'])
                         with col2:
                             if r['status']=='High': st.markdown(':red_circle: **High**')
                             elif r['status']=='Low': st.markdown(':large_yellow_circle: **Low**')
                             elif r['status']=='Normal': st.markdown(':white_check_mark: Normal')
-                    # تنزيل
                     excel = create_excel_bytes(df)
-                    st.download_button('⬇️ تحميل النتائج (Excel)', excel, file_name='analysis.xlsx')
+                    st.download_button('猬囷笍 鬲丨賲賷賱 丕賱賳鬲丕卅噩 (Excel)', excel, file_name='analysis.xlsx')
                     pdfb = create_pdf_report(text, df, notes=notes)
-                    st.download_button('⬇️ تحميل التقرير (PDF)', pdfb, file_name='analysis_report.pdf')
+                    st.download_button('猬囷笍 鬲丨賲賷賱 丕賱鬲賯乇賷乇 (PDF)', pdfb, file_name='analysis_report.pdf')
                 else:
-                    st.warning('لم يتم العثور على فحوصات أو قيم قابلة للقراءة.')
+                    st.warning('賱賲 賷鬲賲 丕賱毓孬賵乇 毓賱賶 賮丨賵氐丕鬲 兀賵 賯賷賲 賯丕亘賱丞 賱賱賯乇丕亍丞.')
             else:
-                st.warning('لا يوجد نص مستخرج من الملف.')
+                st.warning('賱丕 賷賵噩丿 賳氐 賲爻鬲禺乇噩 賲賳 丕賱賲賱賮.')
 
-elif mode in ['استشارة حسب الأعراض','Symptom Consultation']:
-    st.header('💬 استشارة أولية حسب الأعراض / Symptom Consultation')
-    symptoms = st.text_area('صف أعراضك بالتفصيل / Describe your symptoms', height=200)
-    use_local_model = st.checkbox('استخدام النموذج المحلي لو كان موجوداً / Use local model (if available)')
-    feature_input = st.text_input('إذا كنت تملك مصفوفة المميزات للنموذج (اختياري) / feature vector (comma separated)')
-    if st.button('تحليل / Analyze'):
+elif mode in ['丕爻鬲卮丕乇丞 丨爻亘 丕賱兀毓乇丕囟','Symptom Consultation']:
+    st.header('馃挰 丕爻鬲卮丕乇丞 兀賵賱賷丞 丨爻亘 丕賱兀毓乇丕囟 / Symptom Consultation')
+    symptoms = st.text_area('氐賮 兀毓乇丕囟賰 亘丕賱鬲賮氐賷賱 / Describe your symptoms', height=200)
+    use_local_model = st.checkbox('丕爻鬲禺丿丕賲 丕賱賳賲賵匕噩 丕賱賲丨賱賷 賱賵 賰丕賳 賲賵噩賵丿丕賸 / Use local model (if available)')
+    feature_input = st.text_input('廿匕丕 賰賳鬲 鬲賲賱賰 賲氐賮賵賮丞 丕賱賲賲賷夭丕鬲 賱賱賳賲賵匕噩 (丕禺鬲賷丕乇賷) / feature vector (comma separated)')
+    if st.button('鬲丨賱賷賱 / Analyze'):
         if not symptoms.strip():
-            st.warning('الرجاء إدخال الأعراض أولاً / Please enter symptoms')
+            st.warning('丕賱乇噩丕亍 廿丿禺丕賱 丕賱兀毓乇丕囟 兀賵賱丕賸 / Please enter symptoms')
         else:
-            # عرض ملخص بسيط نصي
-            st.subheader('ملخص سريع / Quick summary')
-            st.write('تم استلام الأعراض. التحليل الآلي التالي هو لأغراض إرشادية فقط.')
-            # نموذج محلي
+            st.subheader('賲賱禺氐 爻乇賷毓 / Quick summary')
+            st.write('鬲賲 丕爻鬲賱丕賲 丕賱兀毓乇丕囟. 丕賱鬲丨賱賷賱 丕賱丌賱賷 丕賱鬲丕賱賷 賴賵 賱兀睾乇丕囟 廿乇卮丕丿賷丞 賮賯胤.')
             if use_local_model and MODEL is not None and feature_input.strip():
                 try:
                     vec = [float(x.strip()) for x in feature_input.split(',') if x.strip()]
                     pred = MODEL.predict([vec])[0]
-                    st.success(f'توقع النموذج المحلي: {pred}')
+                    st.success(f'鬲賵賯毓 丕賱賳賲賵匕噩 丕賱賲丨賱賷: {pred}')
                 except Exception as e:
-                    st.error(f'خطأ في إدخال المميزات أو النموذج: {e}')
-            # خيار OpenAI (إذا مزود المفتاح) — إبقاؤه اختياريًا
-            elif api_key and api_key.strip():
-                st.info('يتم استخدام OpenAI لتحليل نصي متقدم (اختياري)')
-                # نرسل الطلب بشكل مبسط (لا نضمن مكتبة openai هنا)
-                try:
-                    from openai import OpenAI
-                    client = OpenAI(api_key=api_key)
-                    prompt = f"You are a helpful doctor. Patient symptoms: {symptoms}. Provide Arabic output."
-                    res = client.chat.completions.create(
-                        model='gpt-4o-mini',
-                        messages=[{'role':'system','content':'You are a medical assistant.'},{'role':'user','content':prompt}],
-                        max_tokens=600
-                    )
-                    out = res.choices[0].message.content
-                    st.markdown(out)
-                except Exception as e:
-                    st.error(f'OpenAI integration error: {e}')
+                    st.error(f'禺胤兀 賮賷 廿丿禺丕賱 丕賱賲賲賷夭丕鬲 兀賵 丕賱賳賲賵匕噩: {e}')
             else:
-                # قواعد بسيطة
-                RULE_KB = {
-                    'fever': ['حمى','ارتفاع حرارة','fever'],
-                    'cough': ['سعال','cough'],
-                    'chest pain': ['ألم صدر','pain in chest']
-                }
-                matches = []
-                for cond, kws in RULE_KB.items():
-                    for kw in kws:
-                        if kw in symptoms.lower():
-                            matches.append(cond)
-                            break
-                if matches:
-                    st.write('مطابقات قواعدية:', matches)
-                else:
-                    st.write('لا توجد مطابقات قواعدية واضحة — جرب وصف مختلف أو استخدم OpenAI/local model إذا متاح.')
+                st.write('賷賲賰賳賰 鬲賮毓賷賱 OpenAI 賮賷 丕賱卮乇賷胤 丕賱噩丕賳亘賷 賱賲夭賷丿 賲賳 丕賱鬲丨賱賷賱 (丕禺鬲賷丕乇賷)')
+
 
 st.sidebar.markdown('---')
-st.sidebar.write('Project: medical-ai-app — Arabic / English')
+st.sidebar.write('Project: medical-ai-app 鈥� Arabic / English')
