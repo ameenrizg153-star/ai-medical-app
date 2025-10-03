@@ -10,3 +10,4 @@ scikit-learn
 joblib
 tensorflow-cpu
 keras-ocr
+openai
