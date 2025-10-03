@@ -1,13 +1,12 @@
 streamlit
 pandas
 numpy
+pillow
 pytesseract
 pdfplumber
 pdf2image
 opencv-python-headless
-Pillow
-scikit-learn
 joblib
-tensorflow-cpu
-keras-ocr
-openai
+scikit-learn
+fpdf
+xlsxwriter
