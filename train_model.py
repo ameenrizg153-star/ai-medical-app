@@ -6,7 +6,6 @@ from sklearn.metrics import accuracy_score
 import joblib
 import os
 
-# تأكد وجود ملف Training.csv داخل مجلد database
 path = os.path.join('database','Training.csv')
 if not os.path.exists(path):
     print('Put your Training.csv in database/Training.csv then re-run this script')
