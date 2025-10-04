@@ -77,16 +77,13 @@ RECOMMENDATIONS = {
 
 # --- دوال المعالجة المحسنة ---
 def preprocess_image_for_ocr(file_bytes):
-    """تحسين الصورة لزيادة دقة التعرف الضوئي"""
     try:
         image = Image.open(io.BytesIO(file_bytes)).convert('RGB')
         cv_image = np.array(image)
         gray = cv2.cvtColor(cv_image, cv2.COLOR_RGB2GRAY)
-        # تطبيق threshold لتحسين التباين
         _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         return Image.fromarray(thresh)
     except Exception:
-        # في حال فشل المعالجة، استخدم الصورة الأصلية
         return Image.open(io.BytesIO(file_bytes))
 
 def extract_text_from_image(processed_img):
@@ -105,7 +102,6 @@ def analyze_text(text):
         aliases = [k for k, v in ALIASES.items() if v == key]
         search_keys = [key] + aliases
         pattern_keys = '|'.join([re.escape(k).replace(".", r"\.?") for k in search_keys])
-        # نمط محسن للبحث عن الأرقام
         pattern = re.compile(rf"({pattern_keys})\s*[:\-=]*\s*([0-9]+(?:\.[0-9]+)?)", re.IGNORECASE)
         for m in pattern.finditer(text_lower):
             try:
@@ -144,7 +140,7 @@ def get_ai_symptom_analysis(api_key, symptoms, pain_location_info):
 
         with st.spinner("🤖 الذكاء الاصطناعي يحلل الأعراض..."):
             response = client.chat.completions.create(
-                model="gpt-4o", # استخدام موديل أحدث وأكثر قدرة
+                model="gpt-4o",
                 messages=[
                     {"role": "system", "content": "أنت طبيب خبير وودود، تقدم إجابات مفصلة ومنظمة."},
                     {"role": "user", "content": prompt}
@@ -235,7 +231,6 @@ elif mode == "💬 استشارة بالأعراض (مع مجسم 3D)":
 
     with col2:
         st.subheader("حدد مكان الألم (اختياري)")
-        # تأكد من وجود ملف human_model.glb في نفس المجلد
         if os.path.exists("human_model.glb"):
             with open("human_model.glb", "rb") as f:
                 model_bytes = f.read()
@@ -249,9 +244,9 @@ elif mode == "💬 استشارة بالأعراض (مع مجسم 3D)":
 
             if clicked_point and 'point' in clicked_point:
                 st.session_state.pain_location = clicked_point['point']
-                st.rerun() # إعادة تشغيل السكربت لتحديث الواجهة
+                st.rerun()
         else:
-            st.warning("ملف المجسم ثلاثي الأبعاد (human_model.glb) غير موجود.")
+            st.warning("ملف المجسم ثلاثي الأبعاد (human_model.glb) غير موجود. يرجى تحميله ووضعه في المجلد.")
 
     if analyze_button:
         if not symptoms:
@@ -261,4 +256,3 @@ elif mode == "💬 استشارة بالأعراض (مع مجسم 3D)":
             if ai_response:
                 st.subheader("🤖 استشارة الذكاء الاصطناعي الأولية")
                 st.markdown(ai_response)
-
