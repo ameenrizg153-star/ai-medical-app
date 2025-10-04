@@ -1,8 +1,7 @@
-streamlit
+flask
 pandas
-numpy
-pillow
-pytesseract
-opencv-python-headless
-openai
-xlsxwriter
+openpyxl
+xlrd
+werkzeug
+scikit-learn
+joblib
