@@ -1,6 +1,13 @@
 streamlit
-pandas
-openai
 pytesseract
+pillow
+pandas
+numpy
 opencv-python-headless
+pdfplumber
+pdf2image
+fpdf
+xlsxwriter
+joblib
 scikit-learn
+openai
