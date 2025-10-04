@@ -1,4 +1,11 @@
+---
+
+## 2) `Training.csv` (small sample for training model — you can expand)
+```csv
 itching,skin_rash,nodal_skin_eruptions,continuous_sneezing,shivering,chills,joint_pain,stomach_pain,acidity,ulcers_on_tongue,diagnosis
 1,1,0,0,0,0,0,0,0,0,Fungal infection
 0,1,1,0,0,0,0,0,0,0,Fungal infection
-0,1,
+0,1,0,0,0,0,0,0,0,0,Allergy
+0,1,0,1,0,0,0,0,0,0,Allergy
+0,0,0,0,1,1,0,0,0,0,Common Cold
+0,0,0,0,1,1,1,0,0,0,Common Cold
