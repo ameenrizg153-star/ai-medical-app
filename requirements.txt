@@ -8,3 +8,4 @@ pdfplumber
 pdf2image
 pandas
 matplotlib
+fpdf==1.7.2
