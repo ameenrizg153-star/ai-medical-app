@@ -27,36 +27,3 @@ calcium,Calcium,الكالسيوم,8.6,10.3,mg/dL,ca;calcium,نقص قد يؤث�
 phosphate,Phosphate,الفوسفات,2.5,4.5,mg/dL,phosphate,,,
 total_protein,Total Protein,البروتين الكلي,6.0,8.3,g/dL,,,,
 albumin,Albumin,الألبومين,3.5,5.0,g/dL,,,انخفاض قد يدل سوء تغذية أو مشاكل كبدية.,
-ast,AST,إنزيم AST,10,40,U/L,sgot,,ارتفاع قد يدل على ضرر كبدي.,🌿
-alt,ALT,إنزيم ALT,7,56,U/L,sgpt,,ارتفاع قد يدل على ضرر كبدي.,🌿
-alp,ALP,إنزيم ALP,44,147,U/L,alp,,ارتفاع قد يدل مشاكل كبد/عظام., 
-ggt,GGT,إنزيم GGT,9,48,U/L,ggt,,,
-bilirubin_total,Bilirubin Total,البيليروبين الكلي,0.1,1.2,mg/dL,total bilirubin,,ارتفاع قد يدل يرقان.,
-total_cholesterol,Cholesterol Total,الكوليسترول الكلي,0,200,mg/dL,total cholesterol,,ارتفاع يزيد خطر القلب.,
-triglycerides,Triglycerides,الدهون الثلاثية,0,150,mg/dL,triglycerides,,,
-hdl,HDL,الكوليسترول الجيد,40,60,mg/dL,hdl,,انخفاض قد يزيد خطر القلب., 
-ldl,LDL,الكوليسترول الضار,0,100,mg/dL,ldl,,ارتفاع ضار للقلب., 
-crp,CRP,بروتين سي التفاعلي,0,10,mg/L,crp,,ارتفاع يدل التهاب حاد., 
-esr,ESR,معدل ترسيب الدم,0,20,mm/hr,esr,,ارتفاع يدل التهاب مزمن., 
-iron,Iron,الحديد,60,170,mcg/dL,iron,,نقص قد يدل نقص تغذية., 
-ferritin,Ferritin,الفيريتين,30,400,ng/mL,ferritin,,نقص يدل نقص مخزون الحديد., 
-vitamin_d,Vitamin D,فيتامين د,30,100,ng/mL,vit d;25-oh,نقص قد يؤثر على العظام.,☀️
-vitamin_b12,Vitamin B12,فيتامين ب12,200,900,pg/mL,vit b12;b12,نقص قد يسبب فقر دم عصبي., 
-tsh,TSH,هرمون TSH,0.4,4.0,mIU/L,tsh,,خاصة بالغدة الدرقية., 
-ft4,FT4,Free T4,0.8,1.8,ng/dL,ft4,,,
-ft3,FT3,Free T3,2.3,4.2,pg/mL,ft3,,,
-troponin,Troponin,التروبونين,0,0.04,ng/mL,troponin,,ارتفاع يدل أذى قلبي., 
-ua,Uric Acid,حمض اليوريك,3.4,7.0,mg/dL,uric acid;ua,,ارتفاع قد يسبب نقرس., 
-stool_occult,Occult Blood,دم خفي في البراز,0,0,positive/negative,occult blood;fobt,وجود دم قد يحتاج مناظير.,🟤
-stool_parasite,Stool Parasite,طفيليات البراز,0,0,positive/negative,parasite,,وجود طفيليات يتطلب علاج., 
-urine_ph,Urine pH,حموضة البول,4.5,8.0,,urine ph;ph,,,
-urine_sg,Specific Gravity,الكثافة النوعية للبول,1.005,1.030,,sg;specific gravity,,,
-pus_cells,Pus Cells,خلايا الصديد في البول,0,5,/HPF,pus cells;pus,ارتفاع يدل التهاب بولي., 
-rbcs_urine,RBCs in Urine,كريات دم حمراء في البول,0,2,/HPF,r.b.c;rbc urine,وجود دم في البول يحتاج متابعة., 
-protein_urine,Urine Protein,بروتين في البول,0,0.15,g/L,protein;albumin urine,ارتفاع قد يدل مشكلة كلوية., 
-ketones,Urine Ketones,كيتونات البول,0,0,mmol/L,ketone,,وجوده يدل كيتوزيس., 
-nitrite,Urine Nitrite,نتريت البول,0,0,positive/negative,nitrite,وجوده يدل التهاب بكتيري., 
-leukocyte_esterase,Leukocyte Esterase,انزيمات كريات الدم البيضاء في البول,0,0,positive/negative,leu esterase,وجوده يدل التهاب بولي., 
-bilirubin_urine,Bilirubin (urine),البيليروبين في البول,0,0,positive/negative,bilirubin urine,وجوده يدل خلل كبدي., 
-urobilinogen,Urobilinogen,يوروبيلينوجين البول,0,1,EU,urobilinogen,, 
-fecal_alpha1,Faecal Alpha-1,فحص براز مثال,0,0,positive/negative,alpha1,,
