@@ -1,62 +1,246 @@
+
+    {"code": "wbc", "name_ar": "كريات الدم البيضاء", "name_en": "White Blood Cells", "low": 4.0, "high": 11.0, "unit": "x10^9/L",
+     "recommendation_low": "قد يدل على ضعف المناعة.", "recommendation_high": "قد يدل على عدوى."},
+    {"code": "rbc", "name_ar": "كريات الدم الحمراء", "name_en": "Red Blood Cells", "low": 4.1, "high": 5.9, "unit": "x10^12/L",
+     "recommendation_low": "", "recommendation_high": ""},
+    {"code": "hemoglobin", "name_ar": "الهيموغلوبين", "name_en": "Hemoglobin", "low": 13.0, "high": 18.0, "unit": "g/dL",
+     "recommendation_low": "قد يدل على فقر الدم.", "recommendation_high": "قد يدل على جفاف."},
+    {"code": "hematocrit", "name_ar": "الهيماتوكريت", "name_en": "Hematocrit", "low": 40, "high": 54, "unit": "%",
+     "recommendation_low": "", "recommendation_high": ""},
+    {"code": "platelets", "name_ar": "الصفائح الدموية", "name_en": "Platelets", "low": 150, "high": 450, "unit": "x10^9/L",
+     "recommendation_low": "قد يزيد من خطر النزيف.", "recommendation_high": "قد يزيد خطر الجلطات."},
+    {"code": "mcv", "name_ar": "متوسط حجم الكرية", "name_en": "MCV", "low": 80, "high": 100, "unit": "fL",
+     "recommendation_low": "", "recommendation_high": ""},
+    {"code": "mch", "name_ar": "متوسط هيموغلوبين الكرية", "name_en": "MCH", "low": 27, "high": 33, "unit": "pg",
+     "recommendation_low": "", "recommendation_high": ""},
+    {"code": "mchc", "name_ar": "تركيز هيموغلوبين الكرية", "name_en": "MCHC", "low": 32, "high": 36, "unit": "g/dL",
+     "recommendation_low": "", "recommendation_high": ""},
+    {"code": "rdw", "name_ar": "عرض توزيع الكريات الحمراء", "name_en": "RDW", "low": 11.5, "high": 14.5, "unit": "%",
+     "recommendation_low": "", "recommendation_high": ""},
+    {"code": "mpv", "name_ar": "متوسط حجم الصفائح", "name_en": "MPV", "low": 7.5, "high": 11.5, "unit": "fL",
+     "recommendation_low": "", "recommendation_high": ""},
+    {"code": "neutrophils", "name_ar": "العدلات", "name_en": "Neutrophils", "low": 40, "high": 76, "unit": "%",
+     "recommendation_low": "انخفاض قد يدل على فيروسات.", "recommendation_high": "ارتفاع قد يدل على عدوى."},
+    {"code": "lymphocytes", "name_ar": "الخلايا اللمفاوية", "name_en": "Lymphocytes", "low": 20, "high": 45, "unit": "%",
+     "recommendation_low": "", "recommendation_high": ""},
+    {"code": "monocytes", "name_ar": "الوحيدات", "name_en": "Monocytes", "low": 2, "high": 10, "unit": "%",
+     "recommendation_low": "", "recommendation_high": ""},
+    {"code": "eosinophils", "name_ar": "الحمضات", "name_en": "Eosinophils", "low": 1, "high": 6, "unit": "%",
+     "recommendation_low": "", "recommendation_high": "ارتفاع قد يدل على حساسية."},
+    {"code": "basophils", "name_ar": "القاعديات", "name_en": "Basophils", "low": 0, "high": 1, "unit": "%",
+     "recommendation_low": "", "recommendation_high": ""},
+    {"code": "glucose_fasting", "name_ar": "الجلوكوز صائم", "name_en": "Glucose (Fasting)", "low": 70, "high": 100, "unit": "mg/dL",
+     "recommendation_low": "قد يدل هبوط السكر.", "recommendation_high": "ارتفاع قد يدل على سكر صائم."},
+    {"code": "glucose", "name_ar": "الجلوكوز (عشوائي)", "name_en": "Glucose Random", "low": 70, "high": 140, "unit": "mg/dL",
+     "recommendation_low": "", "recommendation_high": "ارتفاع قد يدل على فرط سكر."},
+    {"code": "hba1c", "name_ar": "الهيموغلوبين السكري", "name_en": "HbA1c", "low": 4.0, "high": 5.6, "unit": "%",
+     "recommendation_low": "", "recommendation_high": "ارتفاع قد يشير لسوء تحكم بالسكر."},
+    {"code": "bun", "name_ar": "يوريا", "name_en": "BUN/Urea", "low": 7, "high": 20, "unit": "mg/dL",
+     "recommendation_low": "", "recommendation_high": "ارتفاع قد يمثل جفافًا أو خللاً كلويًا."},
+    {"code": "creatinine", "name_ar": "الكرياتينين", "name_en": "Creatinine", "low": 0.6, "high": 1.3, "unit": "mg/dL",
+     "recommendation_low": "", "recommendation_high": "ارتفاع قد يدل على ضعف وظائف الكلى."},
+    {"code": "egfr", "name_ar": "معدل ترشيح الكلى", "name_en": "eGFR", "low": 60, "high": 120, "unit": "mL/min/1.73m2",
+     "recommendation_low": "انخفاض يدل على ضعف كلوي.", "recommendation_high": ""},
+    {"code": "sodium", "name_ar": "الصوديوم", "name_en": "Sodium", "low": 135, "high": 145, "unit": "mEq/L",
+     "recommendation_low": "", "recommendation_high": "خلل الصوديوم يؤثر على توازن السوائل."},
+    {"code": "potassium", "name_ar": "البوتاسيوم", "name_en": "Potassium", "low": 3.5, "high": 5.0, "unit": "mEq/L",
+     "recommendation_low": "انخفاض قد يسبب ضعف عضلي.", "recommendation_high": ""},
+    {"code": "chloride", "name_ar": "الكلوريد", "name_en": "Chloride", "low": 98, "high": 107, "unit": "mEq/L",
+     "recommendation_low": "", "recommendation_high": ""},
+    {"code": "calcium", "name_ar": "الكالسيوم", "name_en": "Calcium", "low": 8.6, "high": 10.3, "unit": "mg/dL",
+     "recommendation_low": "نقص قد يؤثر على العظام.", "recommendation_high": ""},
+    {"code": "phosphate", "name_ar": "الفوسفات", "name_en": "Phosphate", "low": 2.5, "high": 4.5, "unit": "mg/dL",
+     "recommendation_low": "", "recommendation_high": ""},
+    {"code": "total_protein", "name_ar": "البروتين الكلي", "name_en": "Total Protein", "low": 6.0, "high": 8.3, "unit": "g/dL",
+     "recommendation_low": "", "recommendation_high": ""},
+    {"code": "albumin", "name_ar": "الألبومين", "name_en": "Albumin", "low": 3.5, "high": 5.0, "unit": "g/dL",
+     "recommendation_low": "انخفاض قد يدل سوء تغذية أو مشاكل كبدية.", "recommendation_high": ""},
+    {"code": "ast", "name_ar": "إنزيم AST", "name_en": "AST", "low": 10, "high": 40, "unit": "U/L",
+     "recommendation_low": "", "recommendation_high": "ارتفاع قد يدل على ضرر كبدي."},
+    {"code": "alt", "name_ar": "إنزيم ALT", "name_en": "ALT", "low": 7, "high": 56, "unit": "U/L",
+     "recommendation_low": "", "recommendation_high": "ارتفاع قد يدل على ضرر كبدي."},
+    {"code": "alp", "name_ar": "إنزيم ALP", "name_en": "ALP", "low": 44, "high": 147, "unit": "U/L",
+     "recommendation_low": "", "recommendation_high": "ارتفاع قد يدل مشاكل كبد/عظام."},
+    {"code": "ggt", "name_ar": "إنزيم GGT", "name_en": "GGT", "low": 9, "high": 48, "unit": "U/L",
+     "recommendation_low": "", "recommendation_high": ""},
+    {"code": "bilirubin_total", "name_ar": "البيليروبين الكلي", "name_en": "Bilirubin Total", "low": 0.1, "high": 1.2, "unit": "mg/dL",
+     "recommendation_low": "", "recommendation_high": "ارتفاع قد يدل يرقان."},
+    {"code": "total_cholesterol", "name_ar": "الكوليسترول الكلي", "name_en": "Cholesterol Total", "low": 0, "high": 200, "unit": "mg/dL",
+     "recommendation_low": "", "recommendation_high": "ارتفاع يزيد خطر القلب."},
+    {"code": "triglycerides", "name_ar": "الدهون الثلاثية", "name_en": "Triglycerides", "low": 0, "high": 150, "unit": "mg/dL",
+     "recommendation_low": "", "recommendation_high": ""},
+    {"code": "hdl", "name_ar": "الكوليسترول الجيد", "name_en": "HDL", "low": 40, "high": 60, "unit": "mg/dL",
+     "recommendation_low": "", "recommendation_high": "انخفاض قد يزيد خطر القلب."},
+    {"code": "ldl", "name_ar": "الكوليسترول الضار", "name_en": "LDL", "low": 0, "high": 100, "unit": "mg/dL",
+     "recommendation_low": "", "recommendation_high": "ارتفاع ضار للقلب."},
+    {"code": "crp", "name_ar": "بروتين سي التفاعلي", "name_en": "CRP", "low": 0, "high": 10, "unit": "mg/L",
+     "recommendation_low": "", "recommendation_high": "ارتفاع يدل التهاب حاد."},
+    {"code": "esr", "name_ar": "معدل ترسيب الدم", "name_en": "ESR", "low": 0, "high": 20, "unit": "mm/hr",
+     "recommendation_low": "", "recommendation_high": "ارتفاع يدل التهاب مزمن."},
+    {"code": "iron", "name_ar": "الحديد", "name_en": "Iron", "low": 60, "high": 170, "unit": "mcg/dL",
+     "recommendation_low": "نقص قد يدل نقص تغذية.", "recommendation_high": ""},
+    {"code": "ferritin", "name_ar": "الفيريتين", "name_en": "Ferritin", "low": 30, "high": 400, "unit": "ng/mL",
+     "recommendation_low": "نقص يدل نقص مخزون الحديد.", "recommendation_high": ""},
+    {"code": "vitamin_d", "name_ar": "فيتامين د", "name_en": "Vitamin D", "low": 30, "high": 100, "unit": "ng/mL",
+     "recommendation_low": "نقص قد يؤثر على العظام.", "recommendation_high": ""},
+    {"code": "vitamin_b12", "name_ar": "فيتامين ب12", "name_en": "Vitamin B12", "low": 200, "high": 900, "unit": "pg/mL",
+     "recommendation_low": "نقص قد يسبب فقر دم عصبي.", "recommendation_high": ""},
+    {"code": "tsh", "name_ar": "هرمون TSH", "name_en": "TSH", "low": 0.4, "high": 4.0, "unit": "mIU/L",
+     "recommendation_low": "", "recommendation_high": "خاصة بالغدة الدرقية."},
+    {"code": "ft4", "name_ar": "Free T4", "name_en": "FT4", "low": 0.8, "high": 1.8, "unit": "ng/dL",
+     "recommendation_low": "", "recommendation_high": ""},
+    {"code": "ft3", "name_ar": "Free T3", "name_en": "FT3", "low": 2.3, "high": 4.2, "unit": "pg/mL",
+     "recommendation_low": "", "recommendation_high": ""},
+    {"code": "troponin", "name_ar": "التروبونين", "name_en": "Troponin", "low": 0, "high": 0.04, "unit": "ng/mL",
+     "recommendation_low": "", "recommendation_high": "ارتفاع يدل أذى قلبي."},
+    {"code": "ua", "name_ar": "حمض اليوريك", "name_en": "Uric Acid", "low": 3.4, "high": 7.0, "unit": "mg/dL",
+     "recommendation_low": "", "recommendation_high": "ارتفاع قد يسبب نقرس."},
+    {"code": "stool_occult", "name_ar": "دم خفي في البراز", "name_en": "Occult Blood", "low": 0, "high": 0, "unit": "positive/negative",
+     "recommendation_low": "", "recommendation_high": "وجود دم قد يحتاج مناظير."},
+    {"code": "stool_parasite", "name_ar": "طفيليات البراز", "name_en": "Stool Parasite", "low": 0, "high": 0, "unit": "positive/negative",
+     "recommendation_low": "", "recommendation_high": "وجود طفيليات يتطلب علاج."},
+    {"code": "urine_ph", "name_ar": "حموضة البول", "name_en": "Urine pH", "low": 4.5, "high": 8.0, "unit": "",
+     "recommendation_low": "", "recommendation_high": ""},
+    {"code": "urine_sg", "name_ar": "الكثافة النوعية للبول", "name_en": "Specific Gravity", "low": 1.005, "high": 1.030, "unit": "",
+     "recommendation_low": "", "recommendation_high": ""},
+    {"code": "pus_cells", "name_ar": "خلايا الصديد في البول", "name_en": "Pus Cells", "low": 0, "high": 5, "unit": "/HPF",
+     "recommendation_low": "", "recommendation_high": "ارتفاع يدل التهاب بولي."},
+    {"code": "rbcs_urine", "name_ar": "كريات دم حمراء في البول", "name_en": "RBCs in Urine", "low": 0, "high": 2, "unit": "/HPF",
+     "recommendation_low": "", "recommendation_high": "وجود دم في البول يحتاج متابعة."},
+    {"code": "protein_urine", "name_ar": "بروتين في البول", "name_en": "Urine Protein", "low": 0, "high": 0.15, "unit": "g/L",
+     "recommendation_low": "", "recommendation_high": "ارتفاع قد يدل مشكلة كلوية."},
+    {"code": "ketones", "name_ar": "كيتونات البول", "name_en": "Urine Ketones", "low": 0, "high": 0, "unit": "mmol/L",
+     "recommendation_low": "", "recommendation_high": "وجوده يدل كيتوزيس."},
+    {"code": "nitrite", "name_ar": "نتريت البول", "name_en": "Urine Nitrite", "low": 0, "high": 0, "unit": "positive/negative",
+     "recommendation_low": "", "recommendation_high": "وجوده يدل التهاب بكتيري."},
+    {"code": "leukocyte_esterase", "name_ar": "انزيمات كريات الدم البيضاء في البول", "name_en": "Leukocyte Esterase", "low": 0, "high": 0, "unit": "positive/negative",
+     "recommendation_low": "", "recommendation_high": "وجوده يدلcode,name_en,name_ar,low,high,unit,aliases,recommendation_low,recommendation_high,icon
+urine_ph,Urine pH,حموضة البول,4.5,8.0,,urine ph;ph,انخفاض قد يدل على حماض,ارتفاع قد يدل على قلوية,🧪
+urine_sg,Specific Gravity,الكثافة النوعية للبول,1.005,1.030,,sg;specific gravity,انخفاض قد يدل على كثرة شرب الماء أو مشاكل كلوية,ارتفاع قد يدل على جفاف,💧
+pus_cells,Pus Cells,خلايا الصديد في البول,0,5,/HPF,pus cells;pus,ارتفاع قد يدل على التهاب بولي, ,🧫
+rbcs_urine,RBCs in Urine,كريات دم حمراء في البول,0,2,/HPF,r.b.c;rbc urine,وجود دم في البول يحتاج متابعة, ,🩸
+protein_urine,Urine Protein,بروتين في البول,0,0.15,g/L,protein;albumin urine,انخفاض طبيعي,ارتفاع قد يدل على مشكلة كلوية,💧
+ketones,Urine Ketones,كيتونات البول,0,0,mmol/L,ketone,وجوده طبيعي غالبًا,وجوده يدل كيتوزيس,⚡
+nitrite,Urine Nitrite,نتريت البول,0,0,positive/negative,nitrite,سالب طبيعي,وجوده يدل التهاب بكتيري,🦠
+leukocyte_esterase,Leukocyte Esterase,انزيمات كريات الدم البيضاء في البول,0,0,positive/negative,leu esterase,سالب طبيعي,وجوده يدل التهاب بولي,🧫
+bilirubin_urine,Bilirubin (urine),البيليروبين في البول,0,0,positive/negative,bilirubin urine,سالب طبيعي,وجوده يدل خلل كبدي,🌿
+urobilinogen,Urobilinogen,يوروبيلينوجين البول,0,1,EU,urobilinogen,انخفاض طبيعي,ارتفاع قد يدل أمراض كبدية,🌿code,name_en,name_ar,low,high,unit,aliases,recommendation_low,recommendation_high,icon
+glucose_fasting,Glucose (Fasting),الجلوكوز صائم,70,100,mg/dL,glucose fasting;fpg,انخفاض قد يدل هبوط السكر.,ارتفاع قد يدل على سكر صائم.,🍬
+glucose,Glucose Random,الجلوكوز (عشوائي),70,140,mg/dL,blood sugar;sugar,انخفاض طبيعي,ارتفاع قد يدل على فرط سكر.,🍬
+hba1c,HbA1c,الهيموغلوبين السكري,4.0,5.6,%,hba1c,انخفاض طبيعي,ارتفاع قد يشير لسوء تحكم بالسكر.,🧪
+bun,BUN/Urea,يوريا,7,20,mg/dL,bun;urea,انخفاض طبيعي,ارتفاع قد يمثل جفاف أو خللاً كلويًا.,💧
+creatinine,Creatinine,الكرياتينين,0.6,1.3,mg/dL,creatinine level,انخفاض طبيعي,ارتفاع قد يدل على ضعف وظائف الكلى.,💧
+egfr,eGFR,معدل ترشيح الكلى,60,120,mL/min/1.73m2,egfr,انخفاض قد يدل ضعف كلوي.,ارتفاع طبيعي,💧
+sodium,Sodium,الصوديوم,135,145,mEq/L,na;sodium,انخفاض قد يسبب ضعف العضلات أو مشاكل توازن السوائل.,ارتفاع قد يدل احتباس أو جفاف.,🧂
+potassium,Potassium,البوتاسيوم,3.5,5.0,mEq/L,k;potassium,انخفاض قد يسبب ضعف عضلي.,ارتفاع قد يسبب اضطرابات قلبية.,🧂
+chloride,Chloride,الكلوريد,98,107,mEq/L,cl;chloride,انخفاض قد يسبب اختلال توازن السوائل.,ارتفاع قد يدل احتباس,🧂
+calcium,Calcium,الكالسيوم,8.6,10.3,mg/dL,ca;calcium,نقص قد يؤثر على العظام.,ارتفاع قد يدل فرط كالسيوم.,🦴
+phosphate,Phosphate,الفوسفات,2.5,4.5,mg/dL,phosphate,نقص قد يدل سوء تغذية.,ارتفاع قد يدل مشاكل كلوية.,🦴
+total_protein,Total Protein,البروتين الكلي,6.0,8.3,g/dL,,انخفاض قد يدل سوء تغذية أو مشاكل كبدية.,ارتفاع طبيعي,🧪
+albumin,Albumin,الألبومين,3.5,5.0,g/dL,,انخفاض قد يدل سوء تغذية أو مشاكل كبدية.,ارتفاع طبيعي,🧪
+ast,AST,إنزيم AST,10,40,U/L,sgot,انخفاض طبيعي,ارتفاع قد يدل ضرر كبدي.,🌿
+alt,ALT,إنزيم ALT,7,56,U/L,sgpt,انخفاض طبيعي,ارتفاع قد يدل ضرر كبدي.,🌿
+alp,ALP,إنزيم ALP,44,147,U/L,alp,انخفاض طبيعي,ارتفاع قد يدل مشاكل كبد/عظام.,🌿
+ggt,GGT,إنزيم GGT,9,48,U/L,ggt,انخفاض طبيعي,ارتفاع قد يدل ضرر كبدي.,🌿
+bilirubin_total,Bilirubin Total,البيليروبين الكلي,0.1,1.2,mg/dL,total bilirubin,انخفاض طبيعي,ارتفاع قد يدل يرقان.,🌞
+total_cholesterol,Cholesterol Total,الكوليسترول الكلي,0,200,mg/dL,total cholesterol,انخفاض طبيعي,ارتفاع يزيد خطر القلب.,💳
+triglycerides,Triglycerides,الدهون الثلاثية,0,150,mg/dL,triglycerides,انخفاض طبيعي,ارتفاع قد يدل خطر قلبي.,💳
+hdl,HDL,الكوليسترول الجيد,40,60,mg/dL,hdl,انخفاض قد يزيد خطر القلب.,ارتفاع طبيعي,💳
+ldl,LDL,الكوليسترول الضار,0,100,mg/dL,ldl,انخفاض طبيعي,ارتفاع ضار للقلب.,💳
+crp,CRP,بروتين سي التفاعلي,0,10,mg/L,crp,انخفاض طبيعي,ارتفاع يدل التهاب حاد.,🔥
+esr,ESR,معدل ترسيب الدم,0,20,mm/hr,esr,انخفاض طبيعي,ارتفاع يدل التهاب مزمن.,🔥code,name_en,name_ar,low,high,unit,aliases,recommendation_low,recommendation_high,icon
+iron,Iron,الحديد,60,170,mcg/dL,iron,نقص قد يدل نقص تغذية.,ارتفاع طبيعي,🩸
+ferritin,Ferritin,الفيريتين,30,400,ng/mL,ferritin,نقص يدل نقص مخزون الحديد.,ارتفاع طبيعي,🩸
+vitamin_d,Vitamin D,فيتامين د,30,100,ng/mL,vit d;25-oh,نقص قد يؤثر على العظام والمناعة.,ارتفاع طبيعي,☀️
+vitamin_b12,Vitamin B12,فيتامين ب12,200,900,pg/mL,vit b12;b12,نقص قد يسبب فقر دم عصبي.,ارتفاع طبيعي,🧪
+tsh,TSH,هرمون TSH,0.4,4.0,mIU/L,tsh,انخفاض قد يدل فرط نشاط الغدة الدرقية.,ارتفاع قد يدل قصور الغدة الدرقية.,🧬
+ft4,FT4,Free T4,0.8,1.8,ng/dL,ft4,انخفاض قد يدل قصور الغدة الدرقية.,ارتفاع قد يدل فرط نشاط الغدة الدرقية.,🧬
+ft3,FT3,Free T3,2.3,4.2,pg/mL,ft3,انخفاض قد يدل قصور الغدة الدرقية.,ارتفاع قد يدل فرط نشاط الغدة الدرقية.,🧬
+troponin,Troponin,التروبونين,0,0.04,ng/mL,troponin,انخفاض طبيعي,ارتفاع قد يدل أذى قلبي.,❤️
+ua,Uric Acid,حمض اليوريك,3.4,7.0,mg/dL,uric acid;ua,انخفاض طبيعي,ارتفاع قد يسبب نقرس.,💎code,name_en,name_ar,low,high,unit,aliases,recommendation_low,recommendation_high,icon
+stool_occult,Occult Blood,دم خفي في البراز,0,0,positive/negative,occult blood;fobt,غياب الدم طبيعي,وجود دم قد يحتاج مناظير,🟤
+stool_parasite,Stool Parasite,طفيليات البراز,0,0,positive/negative,parasite,غياب الطفيليات طبيعي,وجود طفيليات يتطلب علاج,🦠
+fecal_alpha1,Faecal Alpha-1,فحص براز مثال,0,0,positive/negative,alpha1,غياب طبيعي,وجود غير طبيعي يتطلب متابعة,🧪code,name_en,name_ar,low,high,unit,aliases,recommendation_low,recommendation_high,icon
+urine_ph,Urine pH,حموضة البول,4.5,8.0,,urine ph;ph,انخفاض قد يدل على حموضة عالية، التهاب بولي محتمل.,ارتفاع قد يدل على قلوية البول، التهاب محتمل.,💧
+urine_sg,Specific Gravity,الكثافة النوعية للبول,1.005,1.030,,sg;specific gravity,انخفاض قد يدل على إفراز مائي أو مشاكل كلوية.,ارتفاع قد يدل على تركيز البول أو جفاف.,💧
+pus_cells,Pus Cells,خلايا الصديد في البول,0,5,/HPF,pus cells;pus,ارتفاع يدل التهاب بولي.,ارتفاع شديد قد يدل عدوى شديدة.,🦠
+rbcs_urine,RBCs in Urine,كريات دم حمراء في البول,0,2,/HPF,r.b.c;rbc urine,ارتفاع قد يدل على التهاب أو نزيف بولي.,ارتفاع شديد قد يدل حصوات أو إصابة.,🩸
+protein_urine,Urine Protein,بروتين في البول,0,0.15,g/L,protein;albumin urine,ارتفاع قد يدل مشكلة كلوية.,ارتفاع شديد قد يدل مرض كلوي مزمن.,💧
+ketones,Urine Ketones,كيتونات البول,0,0,mmol/L,ketone,وجوده يدل كيتوزيس.,ارتفاع قد يدل سكري غير متحكم.,⚡
+nitrite,Urine Nitrite,نتريت البول,0,0,positive/negative,nitrite,وجوده يدل التهاب بكتيري.,,🦠
+leukocyte_esterase,Leukocyte Esterase,انزيمات كريات الدم البيضاء في البول,0,0,positive/negative,leu esterase,وجوده يدل التهاب بولي.,,🦠
+bilirubin_urine,Bilirubin (urine),البيليروبين في البول,0,0,positive/negative,bilirubin urine,وجوده يدل خلل كبدي.,,🌿
+urobilinogen,Urobilinogen,يوروبيلينوجين البول,0,1,EU,urobilinogen,ارتفاع قد يدل اضطراب كبدي.,,🌿
+stool_occult,Occult Blood,دم خفي في البراز,0,0,positive/negative,occult blood;fobt,وجود دم قد يحتاج مناظير.,,🟤
+stool_parasite,Stool Parasite,طفيليات البراز,0,0,positive/negative,parasite,وجود طفيليات يتطلب علاج.,,🟤
+fecal_alpha1,Faecal Alpha-1,فحص براز مثال,0,0,positive/negative,alpha1,ارتفاع قد يدل التهاب معوي.,,🟤code,name_en,name_ar,low,high,unit,aliases,recommendation_low,recommendation_high,icon
+wbc,White Blood Cells,كريات الدم البيضاء,4.0,11.0,x10^9/L,w.b.c;white blood cells,انخفاض قد يدل على ضعف المناعة.,ارتفاع قد يدل على عدوى.,⚪
+rbc,Red Blood Cells,كريات الدم الحمراء,4.1,5.9,x10^12/L,r.b.c;red blood cells,انخفاض قد يدل فقر الدم.,ارتفاع قد يدل على جفاف.,🔴
+hemoglobin,Hemoglobin,الهيموغلوبين,13.0,18.0,g/dL,hb;hgb,قد يدل انخفاضه على فقر الدم.,ارتفاع قد يدل على جفاف.,🩸
+hematocrit,Hematocrit,الهيماتوكريت,40,54,%,hct;pcv,انخفاض قد يدل فقر الدم.,ارتفاع قد يدل على جفاف.,🧪
+platelets,Platelets,الصفائح الدموية,150,450,x10^9/L,plt;platelet count,انخفاض قد يزيد خطر النزيف.,ارتفاع قد يزيد خطر الجلطات.,🩹
+mcv,MCV,متوسط حجم الكرية,80,100,fL,mcv,,,
+mch,MCH,متوسط هيموغلوبين الكرية,27,33,pg,mch,,,
+mchc,MCHC,تركيز هيموغلوبين الكرية,32,36,g/dL,mchc,,,
+rdw,RDW,عرض توزيع الكريات الحمراء,11.5,14.5,%,rdw,,,
+mpv,MPV,متوسط حجم الصفائح,7.5,11.5,fL,mpv,,,
+neutrophils,Neutrophils,العدلات,40,76,%,neutrophil,انخفاض قد يدل على فيروسات.,ارتفاع قد يدل على عدوى.,⚫
+lymphocytes,Lymphocytes,الخلايا اللمفاوية,20,45,%,lymphocyte,,,
+monocytes,Monocytes,الوحيدات,2,10,%,monocyte,,,
+eosinophils,Eosinophils,الحمضات,1,6,%,eosinophil,,ارتفاع قد يدل على حساسية., 
+basophils,Basophils,القاعديات,0,1,%,basophil,,,
+glucose_fasting,Glucose (Fasting),الجلوكوز صائم,70,100,mg/dL,glucose fasting;fpg,انخفاض قد يدل هبوط السكر.,ارتفاع قد يدل على سكر صائم.,🍬
+glucose,Glucose Random,الجلوكوز (عشوائي),70,140,mg/dL,blood sugar;sugar,,ارتفاع قد يدل على فرط سكر.,🍬
+hba1c,HbA1c,الهيموغلوبين السكري,4.0,5.6,%,hba1c,,ارتفاع قد يشير لسوء تحكم بالسكر.,🧪
+bun,BUN/Urea,يوريا,7,20,mg/dL,bun;urea,,ارتفاع قد يمثل جفافًا أو خللاً كلويًا.,💧
+creatinine,Creatinine,الكرياتينين,0.6,1.3,mg/dL,creatinine level,,ارتفاع قد يدل على ضعف وظائف الكلى.,💧
+egfr,eGFR,معدل ترشيح الكلى,60,120,mL/min/1.73m2,egfr,انخفاض يدل على ضعف كلوي.,,💧
+sodium,Sodium,الصوديوم,135,145,mEq/L,na;sodium,,خلل الصوديوم يؤثر توازن السوائل.,🧂
+potassium,Potassium,البوتاسيوم,3.5,5.0,mEq/L,k;potassium,انخفاض قد يسبب ضعف عضلي.,ارتفاع قد يدل خلل كهرباء.,🧂
+chloride,Chloride,الكلوريد,98,107,mEq/L,cl;chloride,,ارتفاع أو انخفاض قد يدل اضطراب توازن.,🧂
+calcium,Calcium,الكالسيوم,8.6,10.3,mg/dL,ca;calcium,نقص قد يؤثر على العظام.,ارتفاع قد يدل فرط كالسيوم.,🦴
+phosphate,Phosphate,الفوسفات,2.5,4.5,mg/dL,phosphate,,,
+total_protein,Total Protein,البروتين الكلي,6.0,8.3,g/dL,,,
+albumin,Albumin,الألبومين,3.5,5.0,g/dL,,انخفاض قد يدل سوء تغذية أو مشاكل كبدية.,,
+ast,AST,إنزيم AST,10,40,U/L,sgot,,ارتفاع قد يدل على ضرر كبدي.,🌿
+alt,ALT,إنزيم ALT,7,56,U/L,sgpt,,ارتفاع قد يدل على ضرر كبدي.,🌿
+alp,ALP,إنزيم ALP,44,147,U/L,alp,,ارتفاع قد يدل مشاكل كبد/عظام., 
+ggt,GGT,إنزيم GGT,9,48,U/L,ggt,,,
+bilirubin_total,Bilirubin Total,البيليروبين الكلي,0.1,1.2,mg/dL,total bilirubin,,ارتفاع قد يدل يرقان.,🌿
+total_cholesterol,Cholesterol Total,الكوليسترول الكلي,0,200,mg/dL,total cholesterol,,ارتفاع يزيد خطر القلب., 
+triglycerides,Triglycerides,الدهون الثلاثية,0,150,mg/dL,triglycerides,,,
+hdl,HDL,الكوليسترول الجيد,40,60,mg/dL,hdl,انخفاض قد يزيد خطر القلب.,,
+ldl,LDL,الكوليسترول الضار,0,100,mg/dL,ldl,,ارتفاع ضار للقلب., 
+crp,CRP,بروتين سي التفاعلي,0,10,mg/L,crp,,ارتفاع يدل التهاب حاد., 
+esr,ESR,معدل ترسيب الدم,0,20,mm/hr,esr,,ارتفاع يدل التهاب مزمن., 
+iron,Iron,الحديد,60,170,mcg/dL,iron,نقص قد يدل نقص تغذية.,,
+ferritin,Ferritin,الفيريتين,30,400,ng/mL,ferritin,,نقص يدل نقص مخزون الحديد., 
+vitamin_d,Vitamin D,فيتامين د,30,100,ng/mL,vit d;25-oh,نقص قد يؤثر على العظام.,☀️
+vitamin_b12,Vitamin B12,فيتامين ب12,200,900,pg/mL,vit b12;b12,نقص قد يسبب فقر دم عصبي., 
+tsh,TSH,هرمون TSH,0.4,4.0,mIU/L,tsh,,خاصة بالغدة الدرقية., 
+ft4,FT4,Free T4,0.8,1.8,ng/dL,ft4,,,
+ft3,FT3,Free T3,2.3,4.2,pg/mL,ft3,,,
+troponin,Troponin,التروبونين,0,0.04,ng/mL,troponin,,ارتفاع يدل أذى قلبي., 
+ua,Uric Acid,حمض اليوريك,3.4,7.0,mg/dL,uric acid;ua,,ارتفاع قد يسبب نقرس., 
+urine_ph,Urine pH,حموضة البول,4.5,8.0,,urine ph;ph,انخفاض قد يدل على التهاب بولي، ارتفاع قد يدل على قلوية البول.,💧
+urine_sg,Specific Gravity,الكثافة النوعية للبول,1.005,1.030,,sg;specific gravity,انخفاض قد يدل على مشاكل كلوية، ارتفاع قد يدل على تركيز البول.,💧
+pus_cells,Pus Cells,خلايا الصديد في البول,0,5,/HPF,pus cells;pus,ارتفاع يدل التهاب بولي.,🦠
+rbcs_urine,RBCs in Urine,كريات دم حمراء في البول,0,2,/HPF,r.b.c;rbc urine,وجود دم قد يدل التهاب أو حصوات.,🩸
+protein_urine,Urine Protein,بروتين في البول,0,0.15,g/L,protein;albumin urine,ارتفاع قد يدل مشكلة كلوية.,💧
+ketones,Urine Ketones,كيتونات البول,0,0,mmol/L,ketone,وجوده يدل كيتوزيس.,⚡
+nitrite,Urine Nitrite,نتريت البول,0,0,positive/negative,nitrite,وجوده يدل التهاب بكتيري.,🦠
+leukocyte_esterase,Leukocyte Esterase,انزleukocyte_esterase,Leukocyte Esterase,انزيمات كريات الدم البيضاء في البول,0,0,positive/negative,leu esterase,وجوده يدل التهاب بولي.,🦠
+bilirubin_urine,Bilirubin (urine),البيليروبين في البول,0,0,positive/negative,bilirubin urine,وجوده يدل خلل كبدي.,🌿
+urobilinogen,Urobilinogen,يوروبيلينوجين البول,0,1,EU,urobilinogen,,ارتفاع قد يدل مشاكل كبدية.,🌿
+stool_occult,Faecal Occult Blood,دم خفي في البراز,0,0,positive/negative,occult blood;fobt,وجود دم قد يحتاج مناظير.,🟤
+stool_parasite,Stool Parasite,طفيليات البراز,0,0,positive/negative,parasite,وجود طفيليات يتطلب علاج.,🦠
+fecal_alpha1,Faecal Alpha-1,فحص براز مثال,0,0,positive/negative,alpha1,,,
+
 code,name_en,name_ar,low,high,unit,aliases,recommendation_low,recommendation_high,icon
-wbc,White Blood Cells,كريات الدم البيضاء,4.0,11.0,x10^9/L,"w.b.c;white blood cells","انخفاض قد يدل على ضعف المناعة.","ارتفاع قد يدل على عدوى.",⚪
-rbc,Red Blood Cells,كريات الدم الحمراء,4.1,5.9,x10^12/L,"r.b.c;red blood cells","","","🔴"
-hemoglobin,Hemoglobin,الهيموغلوبين,13.0,18.0,g/dL,"hb;hgb","قد يدل انخفاضه على فقر الدم.","ارتفاع قد يدل على جفاف.",🩸
-hematocrit,Hematocrit,الهيماتوكريت,40,54,%, "hct;pcv","","",""
-platelets,Platelets,الصفائح الدموية,150,450,x10^9/L,"plt;platelet count","انخفاض قد يزيد خطر النزيف.","ارتفاع قد يزيد خطر الجلطات.",🩹
-mcv,MCV,متوسط حجم الكرية,80,100,fL,"mcv","","",""
-mch,MCH,متوسط هيموغلوبين الكرية,27,33,pg,"mch","","",""
-mchc,MCHC,تركيز هيموغلوبين الكرية,32,36,g/dL,"mchc","","",""
-rdw,RDW,عرض توزيع الكريات الحمراء,11.5,14.5,%, "rdw","","",""
-mpv,MPV,متوسط حجم الصفائح,7.5,11.5,fL,"mpv","","",""
-neutrophils,Neutrophils,العدلات,40,76,%, "neutrophil","انخفاض قد يدل على فيروسات.","ارتفاع قد يدل على عدوى.",⚫
-lymphocytes,Lymphocytes,الخلايا اللمفاوية,20,45,%, "lymphocyte","","",""
-monocytes,Monocytes,الوحيدات,2,10,%, "monocyte","","",""
-eosinophils,Eosinophils,الحمضات,1,6,%, "eosinophil","","ارتفاع قد يدل على حساسية.", ""
-basophils,Basophils,القاعديات,0,1,%, "basophil","","",""
-glucose_fasting,Glucose (Fasting),الجلوكوز صائم,70,100,mg/dL,"glucose fasting;fpg","انخفاض قد يدل هبوط السكر.","ارتفاع قد يدل على سكر صائم.",🍬
-glucose,Glucose Random,الجلوكوز (عشوائي),70,140,mg/dL,"blood sugar;sugar","","ارتفاع قد يدل على فرط سكر.",🍬
-hba1c,HbA1c,الهيموغلوبين السكري,4.0,5.6,%, "hba1c","","ارتفاع قد يشير لسوء تحكم بالسكر.",🧪
-bun,BUN/Urea,يوريا,7,20,mg/dL,"bun;urea","","ارتفاع قد يمثل جفافًا أو خللاً كلويًا.",💧
-creatinine,Creatinine,الكرياتينين,0.6,1.3,mg/dL,"creatinine level","","ارتفاع قد يدل على ضعف وظائف الكلى.",💧
-egfr,eGFR,معدل ترشيح الكلى,60,120,mL/min/1.73m2,"egfr","انخفاض يدل على ضعف كلوي.","","💧"
-sodium,Sodium,الصوديوم,135,145,mEq/L,"na;sodium","","خلل الصوديوم يؤثر توازن السوائل.",🧂
-potassium,Potassium,البوتاسيوم,3.5,5.0,mEq/L,"k;potassium","انخفاض قد يسبب ضعف عضلي.","",""
-chloride,Chloride,الكلوريد,98,107,mEq/L,"cl;chloride","","",""
-calcium,Calcium,الكالسيوم,8.6,10.3,mg/dL,"ca;calcium","نقص قد يؤثر على العظام.","","🦴"
-phosphate,Phosphate,الفوسفات,2.5,4.5,mg/dL,"phosphate","","",""
-total_protein,Total Protein,البروتين الكلي,6.0,8.3,g/dL,"","","",""
-albumin,Albumin,الألبومين,3.5,5.0,g/dL,"","انخفاض قد يدل سوء تغذية أو مشاكل كبدية.","",""
-ast,AST,إنزيم AST,10,40,U/L,"sgot","","ارتفاع قد يدل على ضرر كبدي.",🌿
-alt,ALT,إنزيم ALT,7,56,U/L,"sgpt","","ارتفاع قد يدل على ضرر كبدي.",🌿
-alp,ALP,إنزيم ALP,44,147,U/L,"alp","","ارتفاع قد يدل مشاكل كبد/عظام.",""
-ggt,GGT,إنزيم GGT,9,48,U/L,"ggt","","",""
-bilirubin_total,Bilirubin Total,البيليروبين الكلي,0.1,1.2,mg/dL,"total bilirubin","","ارتفاع قد يدل يرقان.",""
-total_cholesterol,Cholesterol Total,الكوليسترول الكلي,0,200,mg/dL,"total cholesterol","","ارتفاع يزيد خطر القلب.",""
-triglycerides,Triglycerides,الدهون الثلاثية,0,150,mg/dL,"triglycerides","","",""
-hdl,HDL,الكوليسترول الجيد,40,60,mg/dL,"hdl","انخفاض قد يزيد خطر القلب.","",""
-ldl,LDL,الكوليسترول الضار,0,100,mg/dL,"ldl","","ارتفاع ضار للقلب.",""
-crp,CRP,بروتين سي التفاعلي,0,10,mg/L,"crp","","ارتفاع يدل التهاب حاد.",""
-esr,ESR,معدل ترسيب الدم,0,20,mm/hr,"esr","","ارتفاع يدل التهاب مزمن.",""
-iron,Iron,الحديد,60,170,mcg/dL,"iron","نقص قد يدل نقص تغذية.","",""
-ferritin,Ferritin,الفيريتين,30,400,ng/mL,"ferritin","نقص يدل نقص مخزون الحديد.","",""
-vitamin_d,Vitamin D,فيتامين د,30,100,ng/mL,"vit d;25-oh","نقص قد يؤثر على العظام.","","☀️"
-vitamin_b12,Vitamin B12,فيتامين ب12,200,900,pg/mL,"vit b12;b12","نقص قد يسبب فقر دم عصبي.","",""
-tsh,TSH,هرمون TSH,0.4,4.0,mIU/L,"tsh","","خاصة بالغدة الدرقية.",""
-ft4,FT4,Free T4,0.8,1.8,ng/dL,"ft4","","",""
-ft3,FT3,Free T3,2.3,4.2,pg/mL,"ft3","","",""
-troponin,Troponin,التروبونين,0,0.04,ng/mL,"troponin","","ارتفاع يدل أذى قلبي.",""
-ua,Uric Acid,حمض اليوريك,3.4,7.0,mg/dL,"uric acid;ua","","ارتفاع قد يسبب نقرس.",""
-stool_occult,Occult Blood,دم خفي في البراز,0,0,positive/negative,"occult blood;fobt","وجود دم قد يحتاج مناظير.","","🟤"
-stool_parasite,Stool Parasite,طفيليات البراز,0,0,positive/negative,"parasite","وجود طفيليات يتطلب علاج.","",""
-urine_ph,Urine pH,حموضة البول,4.5,8.0,"","urine ph;ph","","",""
-urine_sg,Specific Gravity,الكثافة النوعية للبول,1.005,1.030,"","sg;specific gravity","","",""
-pus_cells,Pus Cells,خلايا الصديد في البول,0,5,/HPF,"pus cells;pus","ارتفاع يدل التهاب بولي.","",""
-rbcs_urine,RBCs in Urine,كريات دم حمراء في البول,0,2,/HPF,"r.b.c;rbc urine","وجود دم في البول يحتاج متابعة.","",""
-protein_urine,Urine Protein,بروتين في البول,0,0.15,g/L,"protein;albumin urine","ارتفاع قد يدل مشكلة كلوية.","",""
-ketones,Urine Ketones,كيتونات البول,0,0,mmol/L,"ketone","وجوده يدل كيتوزيس.","",""
-nitrite,Urine Nitrite,نتريت البول,0,0,positive/negative,"nitrite","وجوده يدل التهاب بكتيري.","",""
-leukocyte_esterase,Leukocyte Esterase,انزيمات كريات الدم البيضاء في البول,0,0,positive/negative,"leu esterase","وجوده يدل التهاب بولي.","",""
-bilirubin_urine,Bilirubin (urine),البيليروبين في البول,0,0,positive/negative,"bilirubin urine","وجوده يدل خلل كبدي.","",""
-urobilinogen,Urobilinogen,يوروبيلينوجين البول,0,1,EU,"urobilinogen","","",""
-fecal_alpha1,Faecal Alpha-1,فحص براز مثال,0,0,positive/negative,"alpha1","","",""
+wbc,White Blood Cells,كريات الدم البيضاء,4.0,11.0,x10^9/L,w.b.c;white blood cells,انخفاض قد يدل على ضعف المناعة.,ارتفاع قد يدل على عدوى.,⚪
+rbc,Red Blood Cells,كريات الدم الحمراء,4.1,5.9,x10^12/L,r.b.c;red blood cells,,,
+hemoglobin,Hemoglobin,الهيموغلوبين,13.0,18.0,g/dL,hb;hgb,قد يدل انخفاضه على فقر الدم.,ارتفاع قد يدل على جفاف.,🩸
+hematocrit,Hematocrit,الهيماتوكريت,40,54,%,hct;pcv,,,
+platelets,Platelets,الصفائح الدموية,150,450,x10^9/L,plt;platelet count,انخفاض قد يزيد خطر النزيف.,ارتفاع قد يزيد خطر الجلطات.,🩹
+...
+# أكمل كل الفحوصات من الدم والبول والبراز كما أرسلتها مسبقًا
