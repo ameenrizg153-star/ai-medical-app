@@ -8,7 +8,6 @@ import os
 from openai import OpenAI
 import cv2
 import numpy as np
-from streamlit_aggrid_py3d import Py3D
 
 # --- إعدادات الصفحة ---
 st.set_page_config(
@@ -46,11 +45,6 @@ NORMAL_RANGES = {
     "tsh": {"range": (0.4, 4.0), "unit": "mIU/L", "name_ar": "الهرمون المنبه للغدة الدرقية (TSH)"},
     "t3": {"range": (80, 220), "unit": "ng/dL", "name_ar": "هرمون T3"},
     "t4": {"range": (4.5, 11.2), "unit": "mcg/dL", "name_ar": "هرمون T4"},
-    # بول
-    "ph": {"range": (4.5, 8.0), "unit": "", "name_ar": "حموضة البول (pH)"},
-    "specific_gravity": {"range": (1.005, 1.030), "unit": "", "name_ar": "الكثافة النوعية للبول"},
-    "pus_cells": {"range": (0, 5), "unit": "/HPF", "name_ar": "خلايا الصديد (Pus)"},
-    "rbc_urine": {"range": (0, 2), "unit": "/HPF", "name_ar": "كريات الدم الحمراء (بول)"},
 }
 
 ALIASES = {
@@ -124,17 +118,13 @@ def analyze_text(text):
     return results
 
 # --- الذكاء الاصطناعي ---
-def get_ai_symptom_analysis(api_key, symptoms, pain_location_info):
+def get_ai_symptom_analysis(api_key, symptoms):
     if not api_key:
         st.error("يرجى إدخال مفتاح OpenAI API في الشريط الجانبي.")
         return None
     try:
         client = OpenAI(api_key=api_key)
-        full_symptoms = symptoms
-        if pain_location_info:
-            full_symptoms += f"\n\nمعلومات إضافية من المجسم ثلاثي الأبعاد: {pain_location_info}"
-
-        prompt = f'''أنت طبيب استشاري خبير. المريض يصف الأعراض التالية: "{full_symptoms}".
+        prompt = f'''أنت طبيب استشاري خبير. المريض يصف الأعراض التالية: "{symptoms}".
         قدم استشارة طبية أولية مفصلة ومنظمة في نقاط. ابدأ بتحليل محتمل للأعراض، ثم قدم بعض الاحتمالات التشخيصية (مع التأكيد أنها ليست نهائية)، واختتم بنصائح عامة وتوصية واضحة بزيارة الطبيب.
         مهم جداً: أكد في نهاية ردك أن هذه الاستشارة لا تغني أبداً عن التشخيص الطبي المتخصص.'''
 
@@ -180,7 +170,7 @@ st.sidebar.header("⚙️ الإعدادات")
 api_key_input = st.sidebar.text_input("🔑 أدخل مفتاح OpenAI API", type="password", help="مفتاحك الخاص بواجهة برمجة تطبيقات OpenAI")
 
 st.sidebar.markdown("---")
-mode = st.sidebar.radio("اختر الخدمة:", ["🔬 تحليل التقارير الطبية", "💬 استشارة بالأعراض (مع مجسم 3D)"])
+mode = st.sidebar.radio("اختر الخدمة:", ["🔬 تحليل التقارير الطبية", "💬 استشارة حسب الأعراض"])
 st.sidebar.markdown("---")
 st.sidebar.info("هذا التطبيق هو أداة مساعدة ولا يغني عن استشارة الطبيب المختص.")
 
@@ -208,51 +198,18 @@ if mode == "🔬 تحليل التقارير الطبية":
             with st.expander("📄 عرض النص الخام المستخرج من الصورة"):
                 st.text_area("", text, height=200)
 
-elif mode == "💬 استشارة بالأعراض (مع مجسم 3D)":
+elif mode == "💬 استشارة حسب الأعراض":
     st.header("💬 استشارة أولية حسب الأعراض")
-    st.markdown("صف الأعراض التي تشعر بها، ويمكنك تحديد مكان الألم بدقة على المجسم ثلاثي الأبعاد.")
-
-    col1, col2 = st.columns([2, 3])
-
-    with col1:
-        st.subheader("صف الأعراض كتابياً")
-        symptoms = st.text_area("📝:", height=300, placeholder="مثال: أشعر بصداع حاد في الجزء الأمامي من الرأس مع غثيان...")
-        
-        if 'pain_location' not in st.session_state:
-            st.session_state.pain_location = None
-
-        pain_location_info = ""
-        if st.session_state.pain_location:
-            x, y, z = st.session_state.pain_location['x'], st.session_state.pain_location['y'], st.session_state.pain_location['z']
-            pain_location_info = f"المستخدم حدد نقطة ألم على المجسم عند الإحداثيات (x={x:.2f}, y={y:.2f}, z={z:.2f})."
-            st.info(f"✅ تم تحديد نقطة ألم على المجسم.")
-
-        analyze_button = st.button("تحليل الأعراض بالذكاء الاصطناعي", use_container_width=True)
-
-    with col2:
-        st.subheader("حدد مكان الألم (اختياري)")
-        if os.path.exists("human_model.glb"):
-            with open("human_model.glb", "rb") as f:
-                model_bytes = f.read()
-            
-            clicked_point = Py3D(
-                model_bytes=model_bytes,
-                height="400px",
-                backgroundColor='#f0f2f6',
-                key="3d_model"
-            )
-
-            if clicked_point and 'point' in clicked_point:
-                st.session_state.pain_location = clicked_point['point']
-                st.rerun()
-        else:
-            st.warning("ملف المجسم ثلاثي الأبعاد (human_model.glb) غير موجود. يرجى تحميله ووضعه في المجلد.")
-
-    if analyze_button:
+    st.markdown("صف الأعراض التي تشعر بها بالتفصيل ليقوم الذكاء الاصطناعي بتحليلها.")
+    
+    symptoms = st.text_area("📝 صف الأعراض هنا:", height=200, placeholder="مثال: أشعر بصداع حاد في الجزء الأمامي من الرأس مع غثيان وحساسية للضوء...")
+    
+    if st.button("تحليل الأعراض بالذكاء الاصطناعي", use_container_width=True):
         if not symptoms:
             st.warning("يرجى وصف الأعراض أولاً.")
         else:
-            ai_response = get_ai_symptom_analysis(api_key_input, symptoms, pain_location_info)
+            ai_response = get_ai_symptom_analysis(api_key_input, symptoms)
             if ai_response:
                 st.subheader("🤖 استشارة الذكاء الاصطناعي الأولية")
                 st.markdown(ai_response)
+
