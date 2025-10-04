@@ -1,12 +1,8 @@
 streamlit
+pandas
+numpy
 pillow
 pytesseract
-numpy
 opencv-python-headless
 openai
-pdfplumber
-pdf2image
-pandas
-matplotlib
-fpdf==1.7.2
 xlsxwriter
