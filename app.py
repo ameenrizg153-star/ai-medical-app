@@ -3,7 +3,6 @@ import re
 import io
 from PIL import Image
 import pytesseract
-import pandas as pd
 import os
 from openai import OpenAI
 import cv2
@@ -19,40 +18,37 @@ st.set_page_config(
 
 # --- قواعد البيانات والفحوصات الموسعة ---
 NORMAL_RANGES = {
-    # CBC
     "wbc": {"range": (4.0, 11.0), "unit": "x10^9/L", "name_ar": "كريات الدم البيضاء"},
     "rbc": {"range": (4.1, 5.7), "unit": "x10^12/L", "name_ar": "كريات الدم الحمراء"},
     "hemoglobin": {"range": (13.0, 18.0), "unit": "g/dL", "name_ar": "الهيموغلوبين"},
     "hematocrit": {"range": (40, 54), "unit": "%", "name_ar": "الهيماتوكريت"},
     "platelets": {"range": (150, 450), "unit": "x10^9/L", "name_ar": "الصفائح الدموية"},
-    # كيمياء الدم
-    "glucose": {"range": (70, 140), "unit": "mg/dL", "name_ar": "الجلوكوز (السكر)"},
+    "glucose": {"range": (70, 100), "unit": "mg/dL", "name_ar": "الجلوكوز (صائم)"},
     "creatinine": {"range": (0.6, 1.3), "unit": "mg/dL", "name_ar": "الكرياتينين"},
     "alt": {"range": (7, 56), "unit": "U/L", "name_ar": "إنزيم ALT"},
     "ast": {"range": (10, 40), "unit": "U/L", "name_ar": "إنزيم AST"},
     "crp": {"range": (0, 10), "unit": "mg/L", "name_ar": "بروتين سي التفاعلي (CRP)"},
-    # دهون
     "total_cholesterol": {"range": (0, 200), "unit": "mg/dL", "name_ar": "الكوليسترول الكلي"},
     "triglycerides": {"range": (0, 150), "unit": "mg/dL", "name_ar": "الدهون الثلاثية"},
     "hdl": {"range": (40, 60), "unit": "mg/dL", "name_ar": "الكوليسترول الجيد (HDL)"},
     "ldl": {"range": (0, 100), "unit": "mg/dL", "name_ar": "الكوليسترول الضار (LDL)"},
-    # فيتامينات ومعادن
     "vitamin_d": {"range": (30, 100), "unit": "ng/mL", "name_ar": "فيتامين د"},
     "vitamin_b12": {"range": (200, 900), "unit": "pg/mL", "name_ar": "فيتامين ب12"},
     "iron": {"range": (60, 170), "unit": "mcg/dL", "name_ar": "الحديد"},
     "ferritin": {"range": (30, 400), "unit": "ng/mL", "name_ar": "الفيريتين (مخزون الحديد)"},
-    # غدة درقية
     "tsh": {"range": (0.4, 4.0), "unit": "mIU/L", "name_ar": "الهرمون المنبه للغدة الدرقية (TSH)"},
-    "t3": {"range": (80, 220), "unit": "ng/dL", "name_ar": "هرمون T3"},
-    "t4": {"range": (4.5, 11.2), "unit": "mcg/dL", "name_ar": "هرمون T4"},
 }
 
 ALIASES = {
-    "hb": "hemoglobin", "hgb": "hemoglobin", "pcv": "hematocrit", "hct": "hematocrit",
+    "hb": "hemoglobin", "hgb": "hemoglobin",
+    "pcv": "hematocrit", "hct": "hematocrit",
     "w.b.c": "wbc", "wbc count": "wbc", "white blood cells": "wbc",
-    "r.b.c": "rbc", "red blood cells": "rbc", "plt": "platelets", "platelet count": "platelets",
-    "blood sugar": "glucose", "sugar": "glucose", "sgot": "ast", "sgpt": "alt",
-    "vit d": "vitamin_d", "cholesterol": "total_cholesterol", "trig": "triglycerides",
+    "r.b.c": "rbc", "red blood cells": "rbc",
+    "plt": "platelets", "platelet count": "platelets",
+    "blood sugar": "glucose", "sugar": "glucose",
+    "sgot": "ast", "sgpt": "alt",
+    "vit d": "vitamin_d", "25-oh vitamin d": "vitamin_d",
+    "cholesterol": "total_cholesterol", "trig": "triglycerides",
     "c-reactive protein": "crp",
 }
 
@@ -69,86 +65,113 @@ RECOMMENDATIONS = {
     "crp": {"High": "مؤشر على وجود التهاب في الجسم."},
 }
 
-# --- دوال المعالجة المحسنة ---
+# --- دوال المعالجة ---
+
 def preprocess_image_for_ocr(file_bytes):
+    """تحسين الصورة لزيادة دقة التعرف الضوئي"""
     try:
         image = Image.open(io.BytesIO(file_bytes)).convert('RGB')
         cv_image = np.array(image)
         gray = cv2.cvtColor(cv_image, cv2.COLOR_RGB2GRAY)
-        _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        # زيادة الحدة والتباين
+        thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
         return Image.fromarray(thresh)
     except Exception:
         return Image.open(io.BytesIO(file_bytes))
 
 def extract_text_from_image(processed_img):
+    """استخلاص النص باستخدام Tesseract"""
     try:
-        return pytesseract.image_to_string(processed_img, lang="eng+ara"), None
+        # استخدام إعدادات مخصصة لـ Tesseract لتحسين التعرف على الأرقام والجداول
+        custom_config = r'--oem 3 --psm 6'
+        return pytesseract.image_to_string(processed_img, lang="eng+ara", config=custom_config), None
     except Exception as e:
         return None, f"خطأ في محرك التعرف الضوئي (OCR): {e}"
 
-def analyze_text(text):
+def analyze_text_robust(text):
     """
-    دالة محسنة لتحليل النص المستخرج من تقرير طبي.
-    تعالج النص سطراً بسطر للبحث عن أسماء الفحوصات ثم الأرقام المرتبطة بها.
+    النسخة الأكثر قوة لتحليل النص.
+    تبحث عن كل الفحوصات والأرقام ثم تربط الأقرب منها.
     """
-    results = []
     if not text:
-        return results
+        return []
+
+    text_lower = text.lower()
     
-    processed_tests = set()
-    lines = text.split('\n')
+    # 1. العثور على كل الأرقام ومواقعها
+    # النمط يبحث عن الأرقام الصحيحة والعشرية
+    number_pattern = re.compile(r'(\d+\.?\d*)')
+    found_numbers = [(m.group(1), m.start()) for m in number_pattern.finditer(text_lower)]
 
+    # 2. العثور على كل الفحوصات المدعومة ومواقعها
+    found_tests = []
     for key, details in NORMAL_RANGES.items():
-        if key in processed_tests:
-            continue
-
         aliases = [k for k, v in ALIASES.items() if v == key]
         search_keys = [key] + aliases
         
+        # نمط مرن للبحث عن الكلمات كاملة مع تجاهل المسافات والنقاط
         pattern_keys = '|'.join([re.escape(k).replace(r"\.", r"\.?\s?") for k in search_keys])
-        search_pattern = re.compile(rf'\b({pattern_keys})\b', re.IGNORECASE)
+        test_pattern = re.compile(rf'\b({pattern_keys})\b', re.IGNORECASE)
+        
+        for match in test_pattern.finditer(text_lower):
+            found_tests.append({'key': key, 'pos': match.end()})
 
-        for line in lines:
-            match = search_pattern.search(line)
-            if match:
-                try:
-                    value_match = re.search(r'([0-9]+\.?[0-9]*)', line[match.end():])
-                    
-                    if value_match:
-                        value_str = value_match.group(1)
-                        value = float(value_str)
+    # 3. ربط كل فحص بأقرب رقم يليه
+    results = []
+    processed_tests = set()
 
-                        preceding_char_index = value_match.start() + match.end() - 1
-                        if preceding_char_index >= 0 and line[preceding_char_index] in ['-', '.']:
-                             continue
+    # ترتيب الفحوصات حسب موقعها في النص
+    found_tests.sort(key=lambda x: x['pos'])
 
-                        low, high = details["range"]
-                        status = "طبيعي"
-                        if value < low:
-                            status = "منخفض"
-                        elif value > high:
-                            status = "مرتفع"
-                        
-                        recommendation = RECOMMENDATIONS.get(key, {}).get(status, "")
-                        
-                        results.append({
-                            "name": f"🔬 {details['name_ar']}",
-                            "value_str": value_str,
-                            "status": status,
-                            "range_str": f"{low} - {high} {details['unit']}",
-                            "recommendation": recommendation
-                        })
-                        
-                        processed_tests.add(key)
-                        break 
-                except (ValueError, IndexError):
-                    continue
+    for test in found_tests:
+        key = test['key']
         if key in processed_tests:
             continue
-            
+
+        best_candidate = None
+        min_distance = float('inf')
+
+        for num_val, num_pos in found_numbers:
+            distance = num_pos - test['pos']
+            # نبحث فقط عن الأرقام التي تأتي بعد اسم الفحص وفي مسافة معقولة
+            if 0 < distance < min_distance:
+                # تحقق إضافي: هل هناك اسم فحص آخر بين هذا الفحص والرقم؟
+                is_interrupted = False
+                for other_test in found_tests:
+                    if test['pos'] < other_test['pos'] < num_pos:
+                        is_interrupted = True
+                        break
+                
+                if not is_interrupted:
+                    min_distance = distance
+                    best_candidate = (num_val, num_pos)
+
+        if best_candidate:
+            value_str = best_candidate[0]
+            try:
+                value = float(value_str)
+                details = NORMAL_RANGES[key]
+                low, high = details["range"]
+                status = "طبيعي"
+                if value < low: status = "منخفض"
+                elif value > high: status = "مرتفع"
+                
+                recommendation = RECOMMENDATIONS.get(key, {}).get(status, "")
+                
+                results.append({
+                    "name": f"🔬 {details['name_ar']}",
+                    "value_str": value_str,
+                    "status": status,
+                    "range_str": f"{low} - {high} {details['unit']}",
+                    "recommendation": recommendation
+                })
+                processed_tests.add(key)
+            except (ValueError, KeyError):
+                continue
+                
     return results
 
-# --- الذكاء الاصطناعي ---
+# --- الذكاء الاصطناعي (بدون تغيير) ---
 def get_ai_symptom_analysis(api_key, symptoms):
     if not api_key:
         st.error("يرجى إدخال مفتاح OpenAI API في الشريط الجانبي.")
@@ -173,7 +196,7 @@ def get_ai_symptom_analysis(api_key, symptoms):
             return "❌ مفتاح OpenAI API غير صحيح أو منتهي الصلاحية."
         return f"❌ خطأ في الاتصال بالذكاء الاصطناعي: {e}"
 
-# --- عرض النتائج ---
+# --- عرض النتائج (بدون تغيير) ---
 def display_results_as_cards(results):
     st.subheader("📊 نتائج تحليل التقرير")
     colors = {"طبيعي": "#2E8B57", "منخفض": "#DAA520", "مرتفع": "#DC143C"}
@@ -205,7 +228,6 @@ mode = st.sidebar.radio("اختر الخدمة:", ["🔬 تحليل التقار
 st.sidebar.markdown("---")
 st.sidebar.info("هذا التطبيق هو أداة مساعدة ولا يغني عن استشارة الطبيب المختص.")
 
-
 if mode == "🔬 تحليل التقارير الطبية":
     st.header("🔬 تحليل تقرير طبي (صورة)")
     st.markdown("ارفع صورة واضحة لتقرير المختبر وسيقوم الذكاء الاصطناعي بتحليلها.")
@@ -220,14 +242,15 @@ if mode == "🔬 تحليل التقارير الطبية":
         if err:
             st.error(err)
         elif text:
-            results = analyze_text(text)
+            # استدعاء الدالة الجديدة الأكثر قوة
+            results = analyze_text_robust(text)
             if results:
                 display_results_as_cards(results)
             else:
-                st.warning("لم يتم التعرف على أي فحوصات مدعومة في النص المستخرج. حاول استخدام صورة أوضح أو تأكد من أن الفحوصات مدعومة.")
+                st.error("لم يتم التعرف على أي فحوصات مدعومة في النص المستخرج. حاول استخدام صورة أوضح أو تأكد من أن الفحوصات مدعومة.")
 
-            with st.expander("📄 عرض النص الخام المستخرج من الصورة"):
-                st.text_area("", text, height=200)
+            with st.expander("📄 عرض النص الخام المستخرج من الصورة (للتشخيص)"):
+                st.text_area("", text, height=250)
 
 elif mode == "💬 استشارة حسب الأعراض":
     st.header("💬 استشارة أولية حسب الأعراض")
