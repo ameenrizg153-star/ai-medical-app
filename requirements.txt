@@ -1,7 +1,6 @@
 streamlit
 pytesseract
-pillow
 pandas
-scikit-learn
-joblib
 openai
+opencv-python-headless
+streamlit-aggrid-py3d
