@@ -1,4 +1,4 @@
-# قائمة الحزم المستخدمة في المشروع
+
 streamlit
 pillow
 pytesseract
