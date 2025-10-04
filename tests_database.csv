@@ -1,5 +1,5 @@
 LAB_TESTS = [
-    {"code": "wbc", "name_ar": "كريات الدم البيضاء", "name_en": "White Blood Cells", "low": 4.0, "high": 11.0, "unit": "x10^9/L",
+    {"code": "wbc", "name_ar": دم"كريات الدم البيضاء", "name_en": "White Blood Cells", "low": 4.0, "high": 11.0, "unit": "x10^9/L",
      "recommendation_low": "قد يدل على ضعف المناعة.", "recommendation_high": "قد يدل على عدوى."},
     {"code": "rbc", "name_ar": "كريات الدم الحمراء", "name_en": "Red Blood Cells", "low": 4.1, "high": 5.9, "unit": "x10^12/L",
      "recommendation_low": "", "recommendation_high": ""},
