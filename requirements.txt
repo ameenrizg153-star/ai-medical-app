@@ -1,12 +1,7 @@
 streamlit
-pandas
-numpy
-pillow
 pytesseract
-pdfplumber
-pdf2image
-opencv-python-headless
-joblib
+pillow
+pandas
 scikit-learn
-fpdf
-xlsxwriter
+joblib
+openai
