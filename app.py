@@ -87,34 +87,65 @@ def extract_text_from_image(processed_img):
         return None, f"خطأ في محرك التعرف الضوئي (OCR): {e}"
 
 def analyze_text(text):
+    """
+    دالة محسنة لتحليل النص المستخرج من تقرير طبي.
+    تعالج النص سطراً بسطر للبحث عن أسماء الفحوصات ثم الأرقام المرتبطة بها.
+    """
     results = []
-    if not text: return results
-    text_lower = text.lower()
+    if not text:
+        return results
+    
     processed_tests = set()
+    lines = text.split('\n')
+
     for key, details in NORMAL_RANGES.items():
-        if key in processed_tests: continue
+        if key in processed_tests:
+            continue
+
         aliases = [k for k, v in ALIASES.items() if v == key]
         search_keys = [key] + aliases
-        pattern_keys = '|'.join([re.escape(k).replace(".", r"\.?") for k in search_keys])
-        pattern = re.compile(rf"({pattern_keys})\s*[:\-=]*\s*([0-9]+(?:\.[0-9]+)?)", re.IGNORECASE)
-        for m in pattern.finditer(text_lower):
-            try:
-                value = float(m.group(2))
-                if key in processed_tests: continue
-                low, high = details["range"]
-                status = "طبيعي"
-                if value < low: status = "منخفض"
-                elif value > high: status = "مرتفع"
-                recommendation = RECOMMENDATIONS.get(key, {}).get(status, "")
-                results.append({
-                    "name": f"🔬 {details['name_ar']}",
-                    "value_str": m.group(2), "status": status,
-                    "range_str": f"{low} - {high} {details['unit']}", "recommendation": recommendation
-                })
-                processed_tests.add(key)
-                break
-            except (ValueError, IndexError):
-                continue
+        
+        pattern_keys = '|'.join([re.escape(k).replace(r"\.", r"\.?\s?") for k in search_keys])
+        search_pattern = re.compile(rf'\b({pattern_keys})\b', re.IGNORECASE)
+
+        for line in lines:
+            match = search_pattern.search(line)
+            if match:
+                try:
+                    value_match = re.search(r'([0-9]+\.?[0-9]*)', line[match.end():])
+                    
+                    if value_match:
+                        value_str = value_match.group(1)
+                        value = float(value_str)
+
+                        preceding_char_index = value_match.start() + match.end() - 1
+                        if preceding_char_index >= 0 and line[preceding_char_index] in ['-', '.']:
+                             continue
+
+                        low, high = details["range"]
+                        status = "طبيعي"
+                        if value < low:
+                            status = "منخفض"
+                        elif value > high:
+                            status = "مرتفع"
+                        
+                        recommendation = RECOMMENDATIONS.get(key, {}).get(status, "")
+                        
+                        results.append({
+                            "name": f"🔬 {details['name_ar']}",
+                            "value_str": value_str,
+                            "status": status,
+                            "range_str": f"{low} - {high} {details['unit']}",
+                            "recommendation": recommendation
+                        })
+                        
+                        processed_tests.add(key)
+                        break 
+                except (ValueError, IndexError):
+                    continue
+        if key in processed_tests:
+            continue
+            
     return results
 
 # --- الذكاء الاصطناعي ---
@@ -193,7 +224,7 @@ if mode == "🔬 تحليل التقارير الطبية":
             if results:
                 display_results_as_cards(results)
             else:
-                st.warning("لم يتم التعرف على أي فحوصات مدعومة في النص المستخرج. حاول استخدام صورة أوضح.")
+                st.warning("لم يتم التعرف على أي فحوصات مدعومة في النص المستخرج. حاول استخدام صورة أوضح أو تأكد من أن الفحوصات مدعومة.")
 
             with st.expander("📄 عرض النص الخام المستخرج من الصورة"):
                 st.text_area("", text, height=200)
@@ -212,4 +243,3 @@ elif mode == "💬 استشارة حسب الأعراض":
             if ai_response:
                 st.subheader("🤖 استشارة الذكاء الاصطناعي الأولية")
                 st.markdown(ai_response)
-
