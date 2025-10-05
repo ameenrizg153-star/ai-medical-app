@@ -1,15 +1,29 @@
+# مشروع القارئ والمحلل الآلي لتقارير المختبر
 
-AI Medical App - Mobile WebView Package
+هذا المشروع هو تطبيق ذكي بلغة بايثون يستخدم تقنية التعرف الضوئي على الحروف (OCR) لقراءة تقارير المختبر الطبية (صور أو PDF) وتحليل النتائج بشكل آلي.
 
-Files:
-- app.py
-- lab_tests_full.csv
-- train_model.py
-- requirements.txt
+## الميزات
+- **قراءة آلية:** يستخرج أسماء الفحوصات ونتائجها من الصور وملفات PDF.
+- **قاعدة بيانات شاملة:** يحتوي على 98 فحصًا طبيًا مع النطاقات الطبيعية والنصائح.
+- **تحليل فوري:** يقارن النتائج بالنطاقات الطبيعية ويقدم ملخصًا واضحًا (مرتفع، منخفض، طبيعي).
+- **نصائح مباشرة:** يقدم إرشادات أولية باللغة العربية بناءً على كل نتيجة.
 
-How to run:
-1. python -m venv venv
-2. source venv/bin/activate   (Windows: venv\Scripts\activate)
-3. pip install -r requirements.txt
-4. python app.py
-5. Open http://127.0.0.1:8501/ in your browser (or use WebView on Android)
+## المتطلبات
+- Python 3.6 أو أحدث.
+- **محرك Tesseract OCR:** يجب تثبيته على نظام التشغيل الخاص بك.
+
+## كيفية التثبيت
+
+### الخطوة 1: تثبيت Tesseract OCR Engine
+
+هذا البرنامج ضروري لكي يتمكن بايثون من قراءة النصوص من الصور.
+
+- **على Windows:**
+  1. قم بتنزيل المثبت من [Tesseract at UB Mannheim](https://github.com/UB-Mannheim/tesseract/wiki).
+  2. أثناء التثبيت، تأكد من تحديد حزم اللغات الإضافية التي تحتاجها، **خاصة العربية (Arabic)**.
+  3. لاحظ مسار التثبيت (عادة `C:\Program Files\Tesseract-OCR`). قد تحتاج لإضافته إلى متغيرات البيئة PATH أو تحديده مباشرة في الكود.
+
+- **على macOS:**
+  ```bash
+  brew install tesseract
+  brew install tesseract-lang # لتثبيت جميع اللغات
