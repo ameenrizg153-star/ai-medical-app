@@ -5,3 +5,6 @@ xlrd
 werkzeug
 scikit-learn
 joblib
+pytesseract
+Pillow
+PyMuPDF
