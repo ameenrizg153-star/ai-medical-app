@@ -1,10 +1,4 @@
-flask
 pandas
-openpyxl
-xlrd
-werkzeug
-scikit-learn
-joblib
 pytesseract
 Pillow
 PyMuPDF
