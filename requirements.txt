@@ -6,3 +6,5 @@ pytesseract
 opencv-python-headless
 openai
 xlsxwriter
+tensorflow-cpu
+keras-ocr
