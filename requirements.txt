@@ -1,4 +1,12 @@
+streamlit
 pandas
+numpy
 pytesseract
+pdfplumber
+pdf2image
+opencv-python-headless
 Pillow
-PyMuPDF
+scikit-learn
+joblib
+tensorflow-cpu
+keras-ocr
