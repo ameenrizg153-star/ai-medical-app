@@ -24,7 +24,7 @@ def load_ocr_model():
     """
     return keras_ocr.pipeline.Pipeline()
 
-# --- قواعد البيانات والفحوصات (بدون تغيير) ---
+# --- قواعد البيانات والفحوصات ---
 NORMAL_RANGES = {
     "wbc": {"range": (4.0, 11.0), "unit": "x10^9/L", "name_ar": "كريات الدم البيضاء", "type":"blood"},
     "rbc": {"range": (4.1, 5.9), "unit": "x10^12/L", "name_ar": "كريات الدم الحمراء", "type":"blood"},
@@ -46,54 +46,46 @@ NORMAL_RANGES = {
     "stool_parasite": {"range": (0, 0), "unit": "positive/negative", "name_ar": "طفيليات البراز", "type":"stool"},
 }
 
+# --- قاموس النصائح المحدث والكامل ---
 RECOMMENDATIONS = {
-    "wbc": {"Low": "ضعف المناعة محتمل.", "High": "وجود عدوى محتملة."},
-    "hemoglobin": {"Low": "قد يشير لفقر دم.", "High": "ارتفاع قد يدل جفاف."},
-    "platelets": {"Low": "خطر نزيف.", "High": "خطر جلطة."},
-    "glucose": {"High": "ارتفاع السكر محتمل."},
-    "creatinine": {"High": "قد يشير لضعف الكلى."},
-    "alt": {"High": "إصابة بالكبد محتملة."},
-    "ast": {"High": "إصابة بالكبد محتملة."},
-    "sodium": {"High": "ارتفاع الصوديوم قد يشير لجفاف."},
-    "urine_ph": {"High": "الحمضية مرتفعة، احتمال التهاب بولي."},
-    "pus_cells": {"High": "وجود التهاب بولي محتمل."},
-    "rbcs_urine": {"High": "وجود دم في البول يحتاج متابعة."},
-    "stool_occult": {"High": "وجود دم في البراز، قد يحتاج مناظير."},
-    "stool_parasite": {"High": "وجود طفيليات، يتطلب علاج."},
+    "wbc": {"Low": "قد يشير إلى ضعف المناعة أو بعض الالتهابات الفيروسية.", "High": "قد يشير إلى وجود عدوى بكتيرية أو التهاب حاد."},
+    "rbc": {"Low": "قد يكون مؤشرًا على فقر الدم (الأنيميا).", "High": "قد يشير إلى الجفاف أو بعض أمراض الدم النادرة."},
+    "hemoglobin": {"Low": "مؤشر أساسي على فقر الدم (الأنيميا).", "High": "قد يشير إلى الجفاف أو العيش في المرتفعات."},
+    "hematocrit": {"Low": "قد يشير إلى فقر الدم أو فقدان الدم.", "High": "قد يشير إلى الجفاف الشديد."},
+    "platelets": {"Low": "قد يزيد من خطر النزيف بسهولة.", "High": "قد يزيد من خطر تكوّن الجلطات الدموية."},
+    "glucose": {"Low": "انخفاض السكر قد يسبب دوخة وإغماء.", "High": "ارتفاع السكر قد يكون مؤشرًا على مقدمات السكري أو السكري."},
+    "creatinine": {"High": "قد يشير إلى انخفاض كفاءة وظائف الكلى. يتطلب متابعة."},
+    "alt": {"High": "مؤشر حساس على وجود ضرر أو التهاب في خلايا الكبد."},
+    "ast": {"High": "قد يشير إلى ضرر في الكبد، القلب، أو العضلات."},
+    "crp": {"High": "مؤشر قوي على وجود التهاب حاد في الجسم."},
+    "sodium": {"Low": "قد يسبب ضعفًا وتعبًا.", "High": "قد يشير إلى الجفاف أو مشاكل في الكلى."},
+    "potassium": {"Low": "قد يسبب ضعفًا في العضلات أو اضطرابًا في نبضات القلب.", "High": "خطير على القلب، يتطلب تقييمًا فوريًا."},
+    "urine_ph": {"Low": "زيادة حمضية البول قد ترتبط بحصوات الكلى.", "High": "قلوية البول قد تكون مؤشرًا على التهاب المسالك البولية."},
+    "pus_cells": {"High": "علامة واضحة على وجود التهاب في المسالك البولية."},
+    "rbcs_urine": {"High": "وجود دم في البول يتطلب دائمًا استشارة طبية لمعرفة السبب (قد يكون التهابًا، حصوة، أو غيره)."},
+    "protein_urine": {"High": "قد يكون علامة مبكرة على وجود مشاكل في الكلى."},
+    "stool_occult": {"High": "وجود دم خفي في البراز يتطلب إجراء فحوصات إضافية مثل منظار القولون."},
+    "stool_parasite": {"High": "وجود طفيليات يتطلب علاجًا محددًا للتخلص منها."}
 }
 
 # --- دوال المعالجة ---
-
-# تم استبدال دالة pytesseract بهذه الدالة الجديدة والأكثر قوة
 def extract_text_from_image(pipeline, image_bytes):
-    """
-    يستخدم keras-ocr لاستخراج النص من الصورة مع معالجة أفضل للأخطاء.
-    """
-    image = None  # تهيئة المتغير في البداية لتجنب الخطأ
+    image = None
     try:
-        # الخطوة 1: محاولة قراءة الصورة باستخدام OpenCV لمزيد من الموثوقية
         np_arr = np.frombuffer(image_bytes, np.uint8)
         image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-        
-        # التحقق مما إذا كانت الصورة قد تمت قراءتها بنجاح
         if image is None:
             raise ValueError("فشل في فك تشفير الصورة. قد يكون الملف تالفًا أو غير مدعوم.")
-
-        # الخطوة 2: استخدام النموذج للتعرف على النص
         prediction_groups = pipeline.recognize([image])
-        
-        # الخطوة 3: تجميع النص
         recognized_text = ""
         if prediction_groups:
             predictions = prediction_groups[0]
             sorted_predictions = sorted(predictions, key=lambda x: x[1][:, 1].min())
-            
             lines = []
             current_line = []
             if sorted_predictions:
                 avg_height = np.mean([(p[1][:, 1].max() - p[1][:, 1].min()) for p in sorted_predictions])
                 last_y = sorted_predictions[0][1][:, 1].min()
-
                 for pred in sorted_predictions:
                     current_y = pred[1][:, 1].min()
                     if current_y - last_y > avg_height * 0.8:
@@ -102,38 +94,29 @@ def extract_text_from_image(pipeline, image_bytes):
                     current_line.append(pred)
                     last_y = current_y
                 lines.append(sorted(current_line, key=lambda x: x[1][:, 0].min()))
-
                 final_text = []
                 for line in lines:
                     line_text = " ".join([pred[0] for pred in line if pred[0]])
                     final_text.append(line_text)
-                
                 recognized_text = "\n".join(final_text)
-
         return recognized_text, None
-
     except Exception as e:
         return None, f"Keras-OCR Error: {e}"
 
-# دالة تحليل النص (بدون تغيير)
 def analyze_text_robust(text):
     if not text:
         return []
-
     text_lower = text.lower()
     number_pattern = re.compile(r'(\d+\.?\d*)')
     found_numbers = [(m.group(1), m.start()) for m in number_pattern.finditer(text_lower)]
-
     found_tests = []
     for key, details in NORMAL_RANGES.items():
         pattern = re.compile(rf'\b{key}\b', re.IGNORECASE)
         for match in pattern.finditer(text_lower):
             found_tests.append({'key': key, 'pos': match.end()})
-
     results = []
     processed_tests = set()
     found_tests.sort(key=lambda x: x['pos'])
-
     for test in found_tests:
         key = test['key']
         if key in processed_tests: continue
@@ -150,13 +133,14 @@ def analyze_text_robust(text):
                 details = NORMAL_RANGES[key]
                 low, high = details["range"]
                 status = "طبيعي"
-                if value < low: status = "منخفض"
-                elif value > high: status = "مرتفع"
-                recommendation = RECOMMENDATIONS.get(key, {}).get(status, "")
+                # تعديل بسيط هنا للتعامل مع الحالات المنخفضة والمرتفعة
+                if value < low: status = "Low"
+                elif value > high: status = "High"
+                recommendation = RECOMMENDATIONS.get(key, {}).get(status, "") # البحث عن النصيحة
                 results.append({
                     "name": f"{details['name_ar']}",
                     "value": value,
-                    "status": status,
+                    "status": "منخفض" if status == "Low" else "مرتفع" if status == "High" else "طبيعي",
                     "recommendation": recommendation,
                     "type": details["type"]
                 })
@@ -165,32 +149,26 @@ def analyze_text_robust(text):
                 continue
     return results
 
-# --- عرض النتائج (الدالة المعدلة والمستقرة) ---
+# --- عرض النتائج ---
 def display_results(results):
     if not results:
         st.error("لم يتم التعرف على أي فحوصات مدعومة في التقرير.")
         return
-
     grouped = {}
     for res in results:
         cat_type = res.get("type", "other")
         if cat_type not in grouped:
             grouped[cat_type] = []
         grouped[cat_type].append(res)
-
     categories_to_display = [cat for cat in ["blood", "urine", "stool", "liver"] if cat in grouped]
-    
     if not categories_to_display:
         st.warning("تم العثور على نتائج ولكن لا تنتمي لأي فئة معروفة.")
         return
-
     cols = st.columns(len(categories_to_display))
-
     for i, category in enumerate(categories_to_display):
         with cols[i]:
             st.markdown(f"### 🔬 {category.replace('_', ' ').capitalize()}")
             st.markdown("---")
-            
             items = grouped[category]
             for r in items:
                 status_color = "green" if r['status'] == 'طبيعي' else "orange" if r['status'] == 'منخفض' else "red"
@@ -204,19 +182,19 @@ def display_results(results):
 st.title("🩺 المحلل الطبي الذكي Pro")
 st.sidebar.header("⚙️ الإعدادات")
 api_key_input = st.sidebar.text_input("🔑 أدخل مفتاح OpenAI API", type="password")
-
 mode = st.sidebar.radio("اختر الخدمة:", ["🔬 تحليل التقارير الطبية", "💬 استشارة حسب الأعراض"])
 st.sidebar.info("هذا التطبيق لا يغني عن استشارة الطبيب المختص.")
 
 if mode == "🔬 تحليل التقارير الطبية":
     st.header("🔬 تحليل تقرير طبي (صورة)")
     uploaded_file = st.file_uploader("📂 ارفع ملف صورة التقرير هنا", type=["png","jpg","jpeg"])
-    
     if uploaded_file:
         pipeline = load_ocr_model()
         file_bytes = uploaded_file.getvalue()
         
-        with st.spinner("🧠 العين القوية (Keras-OCR) تقرأ التقرير..."):
+        # --- رسالة الانتظار المحسّنة ---
+        st.info("⏳ جاري استخدام العين القوية (Keras-OCR) لقراءة التقرير. هذه العملية قد تستغرق دقيقة أو أكثر حسب ضغط الخادم. شكرًا لصبرك...")
+        with st.spinner("...النموذج المتقدم يحلل الصورة الآن..."):
             text, err = extract_text_from_image(pipeline, file_bytes)
 
         if err:
@@ -224,12 +202,10 @@ if mode == "🔬 تحليل التقارير الطبية":
         elif text:
             with st.expander("📄 عرض النص الخام المستخرج من الصورة (للتشخيص)"):
                 st.text_area("النص الذي تم استخراجه:", text, height=250)
-
             results = analyze_text_robust(text)
             display_results(results)
         else:
             st.warning("لم تتمكن العين القوية من قراءة أي نص في الصورة.")
-
 
 elif mode == "💬 استشارة حسب الأعراض":
     st.header("💬 استشارة أولية حسب الأعراض")
@@ -249,7 +225,6 @@ elif mode == "💬 استشارة حسب الأعراض":
                 3. اقترح بعض الفحوصات المخبرية الأولية المفيدة.
                 4. قدم نصائح عامة أولية.
                 5. اختتم بنصيحة **مهمة جدًا** تؤكد فيها أن هذه مجرد استشارة أولية وأن التشخيص الدقيق يتطلب زيارة طبيب حقيقي.'''
-                
                 with st.spinner("🧠 الذكاء الاصطناعي يحلل الأعراض..."):
                     response = client.chat.completions.create(
                         model="gpt-4o",
