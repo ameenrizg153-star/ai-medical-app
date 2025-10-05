@@ -121,22 +121,51 @@ def analyze_text_robust(text):
                 continue
     return results
 
-# --- عرض النتائج مع نصائح ذكية ---
+# --- عرض النتائج مع نصائح ذكية (الدالة المعدلة) ---
 def display_results(results):
     if not results:
-        st.error("لم يتم التعرف على أي فحوصات.")
+        st.error("لم يتم التعرف على أي فحوصات مدعومة في التقرير.")
         return
-    grouped = {"blood":[], "urine":[], "stool":[]}
+
+    # تجميع النتائج حسب النوع (blood, urine, stool, liver, etc.)
+    grouped = {}
     for res in results:
-        grouped[res["type"]].append(res)
+        cat_type = res.get("type", "other") # استخدام "other" كفئة افتراضية
+        if cat_type not in grouped:
+            grouped[cat_type] = []
+        grouped[cat_type].append(res)
+
+    # إنشاء أعمدة للفئات الرئيسية لتنظيم العرض
+    categories_to_display = [cat for cat in ["blood", "urine", "stool", "liver"] if cat in grouped]
     
-    for category, items in grouped.items():
-        if not items: continue
-        st.subheader(f"🔬 {category.capitalize()}")
-        for r in items:
-            st.markdown(f"- {r['name']} — {r['value']} — {r['status']}")
-            if r['recommendation']:
-                st.markdown(f"  - 💡 {r['recommendation']}")
+    if not categories_to_display:
+        st.warning("تم العثور على نتائج ولكن لا تنتمي لأي فئة معروفة.")
+        return
+
+    # إنشاء أعمدة بعدد الفئات الموجودة
+    cols = st.columns(len(categories_to_display))
+
+    # عرض كل فئة في عمود منفصل
+    for i, category in enumerate(categories_to_display):
+        with cols[i]:
+            # استخدام st.markdown لإنشاء عنوان جميل وثابت
+            st.markdown(f"### 🔬 {category.replace('_', ' ').capitalize()}")
+            st.markdown("---") # خط فاصل
+            
+            items = grouped[category]
+            for r in items:
+                # تحديد لون الحالة
+                status_color = "green" if r['status'] == 'طبيعي' else "orange" if r['status'] == 'منخفض' else "red"
+                
+                # عرض النتيجة
+                st.markdown(f"**{r['name']}**")
+                st.markdown(f"النتيجة: **{r['value']}** | الحالة: <span style='color:{status_color};'>{r['status']}</span>", unsafe_allow_html=True)
+                
+                # عرض النصيحة إن وجدت
+                if r['recommendation']:
+                    st.info(f"💡 {r['recommendation']}")
+                
+                st.markdown("---") # خط فاصل بين الفحوصات
 
 # --- الواجهة الرئيسية ---
 st.title("🩺 المحلل الطبي الذكي Pro")
@@ -165,17 +194,33 @@ elif mode == "💬 استشارة حسب الأعراض":
     st.header("💬 استشارة أولية حسب الأعراض")
     symptoms = st.text_area("📝 صف الأعراض هنا:", height=200)
     if st.button("تحليل الأعراض بالذكاء الاصطناعي"):
-        if not symptoms:
+        if not api_key_input:
+            st.error("يرجى إدخال مفتاح OpenAI API في الشريط الجانبي أولاً.")
+        elif not symptoms.strip():
             st.warning("يرجى وصف الأعراض أولاً.")
         else:
-            client = OpenAI(api_key=api_key_input)
-            prompt = f'''أنت طبيب خبير. المريض يصف الأعراض: "{symptoms}".
-قدم نصائح أولية بشكل نقاط.'''
-            response = client.chat.completions.create(
-                model="gpt-4o",
-                messages=[
-                    {"role": "system", "content": "أنت طبيب خبير وودود."},
-                    {"role": "user", "content": prompt}
-                ]
-            )
-            st.markdown(response.choices[0].message.content)
+            try:
+                client = OpenAI(api_key=api_key_input)
+                prompt = f'''أنت طبيب خبير وودود. المريض يصف الأعراض التالية: "{symptoms}".
+                بناءً على هذه الأعراض، قم بالمهام التالية باللغة العربية:
+                1. ابدأ بعبارة لطيفة.
+                2. حلل الأعراض بشكل مبسط.
+                3. اقترح بعض الفحوصات المخبرية الأولية المفيدة.
+                4. قدم نصائح عامة أولية.
+                5. اختتم بنصيحة **مهمة جدًا** تؤكد فيها أن هذه مجرد استشارة أولية وأن التشخيص الدقيق يتطلب زيارة طبيب حقيقي.'''
+                
+                with st.spinner("🧠 الذكاء الاصطناعي يحلل الأعراض..."):
+                    response = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {"role": "system", "content": "أنت طبيب استشاري خبير تتحدث العربية بأسلوب ودود ومتعاطف."},
+                            {"role": "user", "content": prompt}
+                        ]
+                    )
+                    st.markdown(response.choices[0].message.content)
+            except Exception as e:
+                if "authentication" in str(e).lower():
+                    st.error("❌ خطأ: مفتاح OpenAI API غير صحيح أو انتهت صلاحيته. يرجى التحقق منه.")
+                else:
+                    st.error(f"❌ حدث خطأ أثناء الاتصال بالذكاء الاصطناعي: {e}")
+
