@@ -64,42 +64,54 @@ RECOMMENDATIONS = {
 
 # --- دوال المعالجة ---
 
-# تم استبدال دالة pytesseract بهذه الدالة الجديدة
+# تم استبدال دالة pytesseract بهذه الدالة الجديدة والأكثر قوة
 def extract_text_from_image(pipeline, image_bytes):
     """
-    يستخدم keras-ocr لاستخراج النص من الصورة.
+    يستخدم keras-ocr لاستخراج النص من الصورة مع معالجة أفضل للأخطاء.
     """
+    image = None  # تهيئة المتغير في البداية لتجنب الخطأ
     try:
-        image = keras_ocr.tools.read(image_bytes)
+        # الخطوة 1: محاولة قراءة الصورة باستخدام OpenCV لمزيد من الموثوقية
+        np_arr = np.frombuffer(image_bytes, np.uint8)
+        image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+        
+        # التحقق مما إذا كانت الصورة قد تمت قراءتها بنجاح
+        if image is None:
+            raise ValueError("فشل في فك تشفير الصورة. قد يكون الملف تالفًا أو غير مدعوم.")
+
+        # الخطوة 2: استخدام النموذج للتعرف على النص
         prediction_groups = pipeline.recognize([image])
         
+        # الخطوة 3: تجميع النص
         recognized_text = ""
-        predictions = prediction_groups[0]
-        sorted_predictions = sorted(predictions, key=lambda x: x[1][:, 1].min())
-        
-        lines = []
-        current_line = []
-        if sorted_predictions:
-            avg_height = np.mean([ (p[1][:,1].max() - p[1][:,1].min()) for p in sorted_predictions])
-            last_y = sorted_predictions[0][1][:, 1].min()
-
-            for pred in sorted_predictions:
-                current_y = pred[1][:, 1].min()
-                if current_y - last_y > avg_height * 0.8:
-                    lines.append(sorted(current_line, key=lambda x: x[1][:, 0].min()))
-                    current_line = []
-                current_line.append(pred)
-                last_y = current_y
-            lines.append(sorted(current_line, key=lambda x: x[1][:, 0].min()))
-
-            final_text = []
-            for line in lines:
-                line_text = " ".join([pred[0] for pred in line])
-                final_text.append(line_text)
+        if prediction_groups:
+            predictions = prediction_groups[0]
+            sorted_predictions = sorted(predictions, key=lambda x: x[1][:, 1].min())
             
-            recognized_text = "\n".join(final_text)
+            lines = []
+            current_line = []
+            if sorted_predictions:
+                avg_height = np.mean([(p[1][:, 1].max() - p[1][:, 1].min()) for p in sorted_predictions])
+                last_y = sorted_predictions[0][1][:, 1].min()
+
+                for pred in sorted_predictions:
+                    current_y = pred[1][:, 1].min()
+                    if current_y - last_y > avg_height * 0.8:
+                        lines.append(sorted(current_line, key=lambda x: x[1][:, 0].min()))
+                        current_line = []
+                    current_line.append(pred)
+                    last_y = current_y
+                lines.append(sorted(current_line, key=lambda x: x[1][:, 0].min()))
+
+                final_text = []
+                for line in lines:
+                    line_text = " ".join([pred[0] for pred in line if pred[0]])
+                    final_text.append(line_text)
+                
+                recognized_text = "\n".join(final_text)
 
         return recognized_text, None
+
     except Exception as e:
         return None, f"Keras-OCR Error: {e}"
 
@@ -201,7 +213,6 @@ if mode == "🔬 تحليل التقارير الطبية":
     uploaded_file = st.file_uploader("📂 ارفع ملف صورة التقرير هنا", type=["png","jpg","jpeg"])
     
     if uploaded_file:
-        # تحميل نموذج OCR
         pipeline = load_ocr_model()
         file_bytes = uploaded_file.getvalue()
         
