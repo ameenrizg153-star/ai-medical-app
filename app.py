@@ -2,11 +2,11 @@ import streamlit as st
 import re
 import io
 from PIL import Image
-import pytesseract
 import numpy as np
 import pandas as pd
 from openai import OpenAI
 import cv2
+import keras_ocr
 
 # --- إعدادات الصفحة ---
 st.set_page_config(
@@ -16,7 +16,15 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- قواعد البيانات والفحوصات ---
+# --- تحميل نموذج OCR (يتم تخزينه في الكاش لسرعة الأداء) ---
+@st.cache_resource
+def load_ocr_model():
+    """
+    تحميل نموذج keras-ocr مرة واحدة فقط وتخزينه في الكاش.
+    """
+    return keras_ocr.pipeline.Pipeline()
+
+# --- قواعد البيانات والفحوصات (بدون تغيير) ---
 NORMAL_RANGES = {
     "wbc": {"range": (4.0, 11.0), "unit": "x10^9/L", "name_ar": "كريات الدم البيضاء", "type":"blood"},
     "rbc": {"range": (4.1, 5.9), "unit": "x10^12/L", "name_ar": "كريات الدم الحمراء", "type":"blood"},
@@ -36,7 +44,6 @@ NORMAL_RANGES = {
     "protein_urine": {"range": (0, 0.15), "unit": "g/L", "name_ar": "بروتين في البول", "type":"urine"},
     "stool_occult": {"range": (0, 0), "unit": "positive/negative", "name_ar": "دم خفي في البراز", "type":"stool"},
     "stool_parasite": {"range": (0, 0), "unit": "positive/negative", "name_ar": "طفيليات البراز", "type":"stool"},
-    # أضف باقي الفحوصات بنفس الشكل...
 }
 
 RECOMMENDATIONS = {
@@ -56,22 +63,47 @@ RECOMMENDATIONS = {
 }
 
 # --- دوال المعالجة ---
-def preprocess_image_for_ocr(file_bytes):
-    try:
-        image = Image.open(io.BytesIO(file_bytes)).convert('RGB')
-        cv_image = np.array(image)
-        gray = cv2.cvtColor(cv_image, cv2.COLOR_RGB2GRAY)
-        thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
-        return Image.fromarray(thresh)
-    except:
-        return Image.open(io.BytesIO(file_bytes))
 
-def extract_text_from_image(processed_img):
+# تم استبدال دالة pytesseract بهذه الدالة الجديدة
+def extract_text_from_image(pipeline, image_bytes):
+    """
+    يستخدم keras-ocr لاستخراج النص من الصورة.
+    """
     try:
-        return pytesseract.image_to_string(processed_img, lang="eng+ara"), None
+        image = keras_ocr.tools.read(image_bytes)
+        prediction_groups = pipeline.recognize([image])
+        
+        recognized_text = ""
+        predictions = prediction_groups[0]
+        sorted_predictions = sorted(predictions, key=lambda x: x[1][:, 1].min())
+        
+        lines = []
+        current_line = []
+        if sorted_predictions:
+            avg_height = np.mean([ (p[1][:,1].max() - p[1][:,1].min()) for p in sorted_predictions])
+            last_y = sorted_predictions[0][1][:, 1].min()
+
+            for pred in sorted_predictions:
+                current_y = pred[1][:, 1].min()
+                if current_y - last_y > avg_height * 0.8:
+                    lines.append(sorted(current_line, key=lambda x: x[1][:, 0].min()))
+                    current_line = []
+                current_line.append(pred)
+                last_y = current_y
+            lines.append(sorted(current_line, key=lambda x: x[1][:, 0].min()))
+
+            final_text = []
+            for line in lines:
+                line_text = " ".join([pred[0] for pred in line])
+                final_text.append(line_text)
+            
+            recognized_text = "\n".join(final_text)
+
+        return recognized_text, None
     except Exception as e:
-        return None, str(e)
+        return None, f"Keras-OCR Error: {e}"
 
+# دالة تحليل النص (بدون تغيير)
 def analyze_text_robust(text):
     if not text:
         return []
@@ -121,51 +153,40 @@ def analyze_text_robust(text):
                 continue
     return results
 
-# --- عرض النتائج مع نصائح ذكية (الدالة المعدلة) ---
+# --- عرض النتائج (الدالة المعدلة والمستقرة) ---
 def display_results(results):
     if not results:
         st.error("لم يتم التعرف على أي فحوصات مدعومة في التقرير.")
         return
 
-    # تجميع النتائج حسب النوع (blood, urine, stool, liver, etc.)
     grouped = {}
     for res in results:
-        cat_type = res.get("type", "other") # استخدام "other" كفئة افتراضية
+        cat_type = res.get("type", "other")
         if cat_type not in grouped:
             grouped[cat_type] = []
         grouped[cat_type].append(res)
 
-    # إنشاء أعمدة للفئات الرئيسية لتنظيم العرض
     categories_to_display = [cat for cat in ["blood", "urine", "stool", "liver"] if cat in grouped]
     
     if not categories_to_display:
         st.warning("تم العثور على نتائج ولكن لا تنتمي لأي فئة معروفة.")
         return
 
-    # إنشاء أعمدة بعدد الفئات الموجودة
     cols = st.columns(len(categories_to_display))
 
-    # عرض كل فئة في عمود منفصل
     for i, category in enumerate(categories_to_display):
         with cols[i]:
-            # استخدام st.markdown لإنشاء عنوان جميل وثابت
             st.markdown(f"### 🔬 {category.replace('_', ' ').capitalize()}")
-            st.markdown("---") # خط فاصل
+            st.markdown("---")
             
             items = grouped[category]
             for r in items:
-                # تحديد لون الحالة
                 status_color = "green" if r['status'] == 'طبيعي' else "orange" if r['status'] == 'منخفض' else "red"
-                
-                # عرض النتيجة
                 st.markdown(f"**{r['name']}**")
                 st.markdown(f"النتيجة: **{r['value']}** | الحالة: <span style='color:{status_color};'>{r['status']}</span>", unsafe_allow_html=True)
-                
-                # عرض النصيحة إن وجدت
                 if r['recommendation']:
                     st.info(f"💡 {r['recommendation']}")
-                
-                st.markdown("---") # خط فاصل بين الفحوصات
+                st.markdown("---")
 
 # --- الواجهة الرئيسية ---
 st.title("🩺 المحلل الطبي الذكي Pro")
@@ -178,17 +199,26 @@ st.sidebar.info("هذا التطبيق لا يغني عن استشارة الط�
 if mode == "🔬 تحليل التقارير الطبية":
     st.header("🔬 تحليل تقرير طبي (صورة)")
     uploaded_file = st.file_uploader("📂 ارفع ملف صورة التقرير هنا", type=["png","jpg","jpeg"])
+    
     if uploaded_file:
+        # تحميل نموذج OCR
+        pipeline = load_ocr_model()
         file_bytes = uploaded_file.getvalue()
-        processed_img = preprocess_image_for_ocr(file_bytes)
-        text, err = extract_text_from_image(processed_img)
+        
+        with st.spinner("🧠 العين القوية (Keras-OCR) تقرأ التقرير..."):
+            text, err = extract_text_from_image(pipeline, file_bytes)
+
         if err:
-            st.error(err)
+            st.error(f"خطأ في قراءة الصورة: {err}")
         elif text:
+            with st.expander("📄 عرض النص الخام المستخرج من الصورة (للتشخيص)"):
+                st.text_area("النص الذي تم استخراجه:", text, height=250)
+
             results = analyze_text_robust(text)
             display_results(results)
-            with st.expander("📄 النص المستخرج"):
-                st.text_area("", text, height=250)
+        else:
+            st.warning("لم تتمكن العين القوية من قراءة أي نص في الصورة.")
+
 
 elif mode == "💬 استشارة حسب الأعراض":
     st.header("💬 استشارة أولية حسب الأعراض")
@@ -223,4 +253,3 @@ elif mode == "💬 استشارة حسب الأعراض":
                     st.error("❌ خطأ: مفتاح OpenAI API غير صحيح أو انتهت صلاحيته. يرجى التحقق منه.")
                 else:
                     st.error(f"❌ حدث خطأ أثناء الاتصال بالذكاء الاصطناعي: {e}")
-
