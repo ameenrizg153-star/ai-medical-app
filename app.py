@@ -6,7 +6,7 @@ import pandas as pd
 from openai import OpenAI
 import cv2
 import easyocr
-import pytesseract
+# import pytesseract # <-- تم حذفه
 import joblib
 from PIL import Image
 import os
@@ -21,12 +21,13 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- تحميل النماذج (مع فرض اللغة الإنجليزية) ---
+# --- تحميل النماذج (EasyOCR فقط) ---
 @st.cache_resource
-def load_ocr_models():
-    # *** التعديل الحاسم: استخدام اللغة الإنجليزية فقط لزيادة الدقة ومنع التشويش ***
+def load_ocr_model():
+    # استخدام اللغة الإنجليزية فقط لضمان الدقة
     return easyocr.Reader(['en'])
 
+# ... (باقي دوال التحميل وقاعدة المعرفة تبقى كما هي تمامًا) ...
 @st.cache_data
 def load_symptom_checker():
     try:
@@ -46,7 +47,6 @@ def load_ecg_analyzer():
     except FileNotFoundError:
         return None, None
 
-# --- قاعدة المعرفة (تبقى كما هي مع الأسماء المستعارة) ---
 KNOWLEDGE_BASE = {
     "wbc": {"name_ar": "كريات الدم البيضاء", "aliases": ["w.b.c", "white blood cells"], "range": (4.0, 11.0), "unit": "x10^9/L", "category": "الالتهابات والمناعة", "recommendation_high": "ارتفاع قد يشير إلى عدوى بكتيرية.", "recommendation_low": "انخفاض قد يشير إلى ضعف مناعي."},
     "rbc": {"name_ar": "كريات الدم الحمراء", "aliases": ["r.b.c", "red blood cells"], "range": (4.1, 5.9), "unit": "x10^12/L", "category": "فحوصات الدم العامة", "recommendation_high": "ارتفاع قد يشير إلى الجفاف.", "recommendation_low": "انخفاض قد يشير إلى فقر دم."},
@@ -59,12 +59,8 @@ KNOWLEDGE_BASE = {
     "leukocytes": {"name_ar": "كريات الدم البيضاء", "aliases": ["leukocyte", "leu"], "range": (0, 0), "unit": "", "category": "تحليل البول", "recommendation_high": "وجودها هو علامة قوية على التهاب المسالك البولية.", "recommendation_low": ""},
     "pus": {"name_ar": "خلايا الصديد", "aliases": ["pus cells"], "range": (0, 5), "unit": "/HPF", "category": "تحليل البول", "recommendation_high": "ارتفاع عددها يؤكد وجود التهاب بولي.", "recommendation_low": ""},
     "rbcs": {"name_ar": "كريات الدم الحمراء", "aliases": ["rbc's", "red blood cells", "blood"], "range": (0, 2), "unit": "/HPF", "category": "تحليل البول", "recommendation_high": "وجود دم في البول يتطلب استشارة طبية لمعرفة السبب.", "recommendation_low": ""},
-    # ... (باقي قاعدة المعرفة)
 }
-
-# --- دوال المعالجة والتحليل (تبقى كما هي) ---
 def analyze_text_robust(text):
-    # ... (الكود الكامل للدالة موجود في الردود السابقة) ...
     if not text: return []
     results = []
     text_lower = text.lower()
@@ -113,9 +109,7 @@ def analyze_text_robust(text):
             except (ValueError, KeyError):
                 continue
     return results
-
 def display_results(results):
-    # ... (الكود الكامل للدالة موجود في الردود السابقة) ...
     if not results:
         st.error("لم يتم التعرف على أي فحوصات مدعومة في التقرير.")
         return
@@ -134,9 +128,12 @@ def display_results(results):
                 if r['recommendation']:
                     st.info(f"💡 {r['recommendation']}")
         st.markdown("---")
+def plot_signal(signal, title):
+    df = pd.DataFrame({'Time': range(len(signal)), 'Amplitude': signal})
+    chart = alt.Chart(df).mark_line(color='#FF4B4B').encode(x=alt.X('Time', title='الزمن'), y=alt.Y('Amplitude', title='السعة'), tooltip=['Time', 'Amplitude']).properties(title=title).interactive()
+    st.altair_chart(chart, use_container_width=True)
 
-# --- الواجهة الرئيسية (مع فرض اللغة الإنجليزية) ---
-# ... (باقي الدوال والواجهة تبقى كما هي) ...
+# --- الواجهة الرئيسية (تم تبسيطها للاعتماد على EasyOCR فقط) ---
 st.title("⚕️ المجموعة الطبية الذكية")
 st.sidebar.header("اختر الأداة المطلوبة")
 mode = st.sidebar.radio("الأدوات المتاحة:", ("🔬 تحليل التقارير الطبية (OCR)", "🩺 مدقق الأعراض الذكي", "💓 محلل إشارات ECG"))
@@ -146,50 +143,45 @@ api_key_input = st.sidebar.text_input("🔑 أدخل مفتاح OpenAI API (اخ
 if mode == "🔬 تحليل التقارير الطبية (OCR)":
     st.header("🔬 تحليل تقرير طبي (صورة)")
     uploaded_file = st.file_uploader("📂 ارفع ملف صورة التقرير هنا", type=["png","jpg","jpeg"])
+    
     if uploaded_file:
         file_bytes = uploaded_file.getvalue()
-        text = ""
-        with st.spinner("المرحلة 1: جاري المحاولة السريعة (الإنجليزية فقط)..."):
+        text = None
+        
+        # --- استراتيجية جديدة: الاعتماد الكامل على EasyOCR للموثوقية ---
+        with st.spinner("المحرك المتقدم (EasyOCR) يحلل الصورة الآن... (قد يستغرق بعض الوقت)"):
             try:
-                # *** التعديل الحاسم: استخدام اللغة الإنجليزية فقط ***
-                text = pytesseract.image_to_string(Image.open(io.BytesIO(file_bytes)), lang='eng')
-                results = analyze_text_robust(text)
-                if len(results) < 2:
-                    st.warning("المحاولة السريعة لم تجد نتائج كافية. جاري الانتقال إلى المحرك المتقدم...")
-                    text = ""
-                else:
-                    st.success("تم التحليل بنجاح باستخدام المحرك السريع!")
-            except Exception:
-                text = ""
-        if not text:
-            with st.spinner("المرحلة 2: المحرك المتقدم (EasyOCR) يحلل الصورة الآن (الإنجليزية فقط)..."):
-                try:
-                    img = Image.open(io.BytesIO(file_bytes)).convert('L')
-                    img.thumbnail((1200, 1200), Image.Resampling.LANCZOS)
-                    buffered = io.BytesIO()
-                    img.save(buffered, format="PNG")
-                    img_bytes_processed = buffered.getvalue()
-                    reader = load_ocr_models()
-                    raw_results = reader.readtext(img_bytes_processed, detail=0, paragraph=True)
-                    text = "\n".join(raw_results)
-                    st.success("تم التحليل بنجاح باستخدام المحرك المتقدم!")
-                except Exception as e:
-                    st.error(f"حدث خطأ فادح أثناء التحليل المتقدم: {e}")
-                    text = None
+                # معالجة الصورة لتقليل الذاكرة
+                img = Image.open(io.BytesIO(file_bytes)).convert('L')
+                img.thumbnail((1200, 1200), Image.Resampling.LANCZOS)
+                buffered = io.BytesIO()
+                img.save(buffered, format="PNG")
+                img_bytes_processed = buffered.getvalue()
+                
+                reader = load_ocr_model()
+                raw_results = reader.readtext(img_bytes_processed, detail=0, paragraph=True)
+                text = "\n".join(raw_results)
+                st.success("تم تحليل الصورة بنجاح!")
+            except Exception as e:
+                st.error(f"حدث خطأ فادح أثناء التحليل: {e}")
+                text = None
+
+        # عرض النتائج النهائية
         if text:
-            with st.expander("📄 عرض النص الخام المستخرج (بعد التصحيح)"):
+            with st.expander("📄 عرض النص الخام المستخرج"):
                 st.text_area("النص:", text, height=250)
+            
             final_results = analyze_text_robust(text)
             display_results(final_results)
         elif text is None:
+            # لا تفعل شيئًا، فقد تم عرض رسالة الخطأ بالفعل
             pass
         else:
-            st.error("لم يتمكن أي من المحركين من قراءة النص في الصورة.")
+            st.error("لم يتمكن المحرك من قراءة أي نص في الصورة.")
 
-# ... (باقي أوضاع التطبيق تبقى كما هي) ...
 elif mode == "🩺 مدقق الأعراض الذكي":
-    # ...
+    # ... (الكود الكامل لهذا الوضع موجود في الردود السابقة) ...
     pass
 elif mode == "💓 محلل إشارات ECG":
-    # ...
+    # ... (الكود الكامل لهذا الوضع موجود في الردود السابقة) ...
     pass
