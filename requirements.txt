@@ -1,14 +1,8 @@
 streamlit
-pandas
-numpy==1.24.4
-opencv-python-headless
-Pillow
-scikit-learn
-joblib
 easyocr
+numpy==1.24.4
+Pillow
 torch
 torchvision
-# pytesseract  <-- يمكنك حذفه
-openai
-tensorflow
-altair
+opencv-python-headless
+streamlit-js-eval
