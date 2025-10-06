@@ -6,6 +6,8 @@ Pillow
 scikit-learn
 joblib
 easyocr
-torch 
+torch
 torchvision
 openai
+tensorflow
+altair
