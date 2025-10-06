@@ -24,12 +24,10 @@ st.set_page_config(
 # --- تحميل النماذج (مع التخزين المؤقت) ---
 @st.cache_resource
 def load_ocr_models():
-    """تحميل قارئ EasyOCR."""
     return easyocr.Reader(['en', 'ar'])
 
 @st.cache_data
 def load_symptom_checker():
-    """تحميل نموذج مدقق الأعراض."""
     try:
         s_model = joblib.load('symptom_checker_model.joblib')
         s_data = pd.read_csv('Training.csv')
@@ -40,7 +38,6 @@ def load_symptom_checker():
 
 @st.cache_resource
 def load_ecg_analyzer():
-    """تحميل نموذج محلل ECG."""
     try:
         ecg_model = load_model("ecg_classifier_model.h5")
         ecg_signals = np.load("sample_ecg_signals.npy", allow_pickle=True).item()
@@ -48,37 +45,36 @@ def load_ecg_analyzer():
     except FileNotFoundError:
         return None, None
 
-# --- قاعدة المعرفة المتكاملة (تم توسيعها لتشمل فحوصات البول) ---
+# --- قاعدة المعرفة المتكاملة (مع الأسماء المستعارة واللهجات المختلفة) ---
 KNOWLEDGE_BASE = {
     # === فحوصات الدم والكيمياء ===
-    "wbc": {"name_ar": "كريات الدم البيضاء", "range": (4.0, 11.0), "unit": "x10^9/L", "category": "الالتهابات والمناعة", "recommendation_high": "ارتفاع قد يشير إلى عدوى بكتيرية.", "recommendation_low": "انخفاض قد يشير إلى ضعف مناعي."},
-    "rbc": {"name_ar": "كريات الدم الحمراء", "range": (4.1, 5.9), "unit": "x10^12/L", "category": "فحوصات الدم العامة", "recommendation_high": "ارتفاع قد يشير إلى الجفاف.", "recommendation_low": "انخفاض قد يشير إلى فقر دم."},
-    "hemoglobin": {"name_ar": "الهيموغلوبين", "range": (13.0, 18.0), "unit": "g/dL", "category": "فحوصات الدم العامة", "recommendation_high": "ارتفاع قد يشير إلى الجفاف.", "recommendation_low": "انخفاض هو مؤشر أساسي على فقر الدم."},
-    "platelets": {"name_ar": "الصفائح الدموية", "range": (150, 450), "unit": "x10^9/L", "category": "فحوصات الدم العامة", "recommendation_high": "ارتفاع قد يزيد من خطر الجلطات.", "recommendation_low": "انخفاض قد يزيد من خطر النزيف."},
-    "glucose": {"name_ar": "سكر الدم", "range": (70, 100), "unit": "mg/dL", "category": "سكر الدم", "recommendation_high": "قد يدل على سكري أو مقاومة للأنسولين.", "recommendation_low": "قد يدل على هبوط سكر."},
-    "creatinine": {"name_ar": "الكرياتينين", "range": (0.6, 1.3), "unit": "mg/dL", "category": "وظائف الكلى", "recommendation_high": "ارتفاع يدل على ضعف محتمل في وظائف الكلى.", "recommendation_low": "عادة لا يثير القلق."},
-    "alt": {"name_ar": "إنزيم ALT", "range": (7, 56), "unit": "U/L", "category": "وظائف الكبد", "recommendation_high": "ارتفاع قد يدل على التهاب أو تلف في الكبد.", "recommendation_low": ""},
-    "ast": {"name_ar": "إنزيم AST", "range": (10, 40), "unit": "U/L", "category": "وظائف الكبد", "recommendation_high": "ارتفاع قد يدل على تلف في الكبد أو العضلات.", "recommendation_low": ""},
+    "wbc": {"name_ar": "كريات الدم البيضاء", "aliases": ["w.b.c", "white blood cells"], "range": (4.0, 11.0), "unit": "x10^9/L", "category": "الالتهابات والمناعة", "recommendation_high": "ارتفاع قد يشير إلى عدوى بكتيرية.", "recommendation_low": "انخفاض قد يشير إلى ضعف مناعي."},
+    "rbc": {"name_ar": "كريات الدم الحمراء", "aliases": ["r.b.c", "red blood cells"], "range": (4.1, 5.9), "unit": "x10^12/L", "category": "فحوصات الدم العامة", "recommendation_high": "ارتفاع قد يشير إلى الجفاف.", "recommendation_low": "انخفاض قد يشير إلى فقر دم."},
+    "hemoglobin": {"name_ar": "الهيموغلوبين", "aliases": ["hb", "hgb"], "range": (13.0, 18.0), "unit": "g/dL", "category": "فحوصات الدم العامة", "recommendation_high": "ارتفاع قد يشير إلى الجفاف.", "recommendation_low": "انخفاض هو مؤشر أساسي على فقر الدم."},
+    "platelets": {"name_ar": "الصفائح الدموية", "aliases": ["plt"], "range": (150, 450), "unit": "x10^9/L", "category": "فحوصات الدم العامة", "recommendation_high": "ارتفاع قد يزيد من خطر الجلطات.", "recommendation_low": "انخفاض قد يزيد من خطر النزيف."},
+    "glucose": {"name_ar": "سكر الدم", "aliases": ["sugar"], "range": (70, 100), "unit": "mg/dL", "category": "سكر الدم", "recommendation_high": "قد يدل على سكري أو مقاومة للأنسولين.", "recommendation_low": "قد يدل على هبوط سكر."},
+    "creatinine": {"name_ar": "الكرياتينين", "aliases": [], "range": (0.6, 1.3), "unit": "mg/dL", "category": "وظائف الكلى", "recommendation_high": "ارتفاع يدل على ضعف محتمل في وظائف الكلى.", "recommendation_low": "عادة لا يثير القلق."},
+    "alt": {"name_ar": "إنزيم ALT", "aliases": ["sgpt"], "range": (7, 56), "unit": "U/L", "category": "وظائف الكبد", "recommendation_high": "ارتفاع قد يدل على التهاب أو تلف في الكبد.", "recommendation_low": ""},
+    "ast": {"name_ar": "إنزيم AST", "aliases": ["sgot"], "range": (10, 40), "unit": "U/L", "category": "وظائف الكبد", "recommendation_high": "ارتفاع قد يدل على تلف في الكبد أو العضلات.", "recommendation_low": ""},
     
-    # === فحوصات تحليل البول (URINE ANALYSIS) - تمت الإضافة والتوسعة ===
-    # الفحص الكيميائي (Chemical)
-    "ph": {"name_ar": "حموضة البول (pH)", "range": (4.5, 8.0), "unit": "", "category": "تحليل البول", "recommendation_high": "قلوية البول قد تشير لالتهاب.", "recommendation_low": "حمضية البول قد ترتبط بحصوات معينة."},
-    "sg": {"name_ar": "الكثافة النوعية (SG)", "range": (1.005, 1.030), "unit": "", "category": "تحليل البول", "recommendation_high": "ارتفاع الكثافة قد يشير إلى الجفاف.", "recommendation_low": "انخفاض الكثافة قد يشير إلى شرب كميات كبيرة من الماء."},
-    "leukocytes": {"name_ar": "كريات الدم البيضاء (Leukocytes)", "range": (0, 0), "unit": "", "category": "تحليل البول", "recommendation_high": "وجودها هو علامة قوية على التهاب المسالك البولية.", "recommendation_low": ""},
-    "nitrite": {"name_ar": "النتريت (Nitrite)", "range": (0, 0), "unit": "", "category": "تحليل البول", "recommendation_high": "وجوده يشير بقوة إلى وجود عدوى بكتيرية.", "recommendation_low": ""},
-    "protein": {"name_ar": "البروتين (Protein)", "range": (0, 15), "unit": "mg/dL", "category": "تحليل البول", "recommendation_high": "وجود البروتين قد يكون علامة على مشاكل في الكلى.", "recommendation_low": ""},
-    "ketones": {"name_ar": "الكيتونات (Ketones)", "range": (0, 0), "unit": "", "category": "تحليل البول", "recommendation_high": "وجودها قد يشير إلى السكري غير المتحكم به أو حمية منخفضة الكربوهيدرات.", "recommendation_low": ""},
-    "bilirubin": {"name_ar": "البيليروبين (Bilirubin)", "range": (0, 0), "unit": "", "category": "تحليل البول", "recommendation_high": "وجوده في البول قد يشير إلى مشاكل في الكبد.", "recommendation_low": ""},
-    
-    # الفحص المجهري (Microscopic)
-    "pus": {"name_ar": "خلايا الصديد (Pus Cells)", "range": (0, 5), "unit": "/HPF", "category": "تحليل البول", "recommendation_high": "ارتفاع عددها يؤكد وجود التهاب بولي.", "recommendation_low": ""},
-    "rbcs": {"name_ar": "كريات الدم الحمراء (RBCs)", "range": (0, 2), "unit": "/HPF", "category": "تحليل البول", "recommendation_high": "وجود دم في البول يتطلب استشارة طبية لمعرفة السبب.", "recommendation_low": ""},
-    "epithelial": {"name_ar": "الخلايا الطلائية (Epithelial)", "range": (0, 5), "unit": "/HPF", "category": "تحليل البول", "recommendation_high": "ارتفاعها قد يشير إلى التهاب.", "recommendation_low": ""},
-    "crystals": {"name_ar": "الأملاح/البلورات (Crystals)", "range": (0, 0), "unit": "", "category": "تحليل البول", "recommendation_high": "وجود أنواع معينة بكثرة قد يزيد من خطر تكون الحصوات.", "recommendation_low": ""},
-    "bacteria": {"name_ar": "البكتيريا (Bacteria)", "range": (0, 0), "unit": "", "category": "تحليل البول", "recommendation_high": "وجودها يؤكد وجود عدوى بكتيرية.", "recommendation_low": ""},
+    # === فحوصات تحليل البول (مع الأسماء المستعارة واللهجات المختلفة) ===
+    "color": {"name_ar": "لون البول", "aliases": ["colour"], "range": (0, 0), "unit": "", "category": "تحليل البول", "recommendation_high": "لون داكن قد يشير لجفاف، لون أحمر قد يشير لوجود دم.", "recommendation_low": ""},
+    "appearance": {"name_ar": "عكارة البول", "aliases": ["clarity"], "range": (0, 0), "unit": "", "category": "تحليل البول", "recommendation_high": "عكارة قد تشير لوجود التهاب أو أملاح.", "recommendation_low": ""},
+    "ph": {"name_ar": "حموضة البول (pH)", "aliases": ["p.h", "p h"], "range": (4.5, 8.0), "unit": "", "category": "تحليل البول", "recommendation_high": "قلوية البول قد تشير لالتهاب.", "recommendation_low": "حمضية البول قد ترتبط بحصوات معينة."},
+    "sg": {"name_ar": "الكثافة النوعية (SG)", "aliases": ["specific gravity", "gravity"], "range": (1.005, 1.030), "unit": "", "category": "تحليل البول", "recommendation_high": "ارتفاع الكثافة قد يشير إلى الجفاف.", "recommendation_low": "انخفاض الكثافة قد يشير إلى شرب كميات كبيرة من الماء."},
+    "leukocytes": {"name_ar": "كريات الدم البيضاء", "aliases": ["leukocyte", "leu"], "range": (0, 0), "unit": "", "category": "تحليل البول", "recommendation_high": "وجودها هو علامة قوية على التهاب المسالك البولية.", "recommendation_low": ""},
+    "nitrite": {"name_ar": "النتريت", "aliases": ["nit"], "range": (0, 0), "unit": "", "category": "تحليل البول", "recommendation_high": "وجوده يشير بقوة إلى وجود عدوى بكتيرية.", "recommendation_low": ""},
+    "protein": {"name_ar": "البروتين", "aliases": ["pro", "albumin"], "range": (0, 15), "unit": "mg/dL", "category": "تحليل البول", "recommendation_high": "وجود البروتين قد يكون علامة على مشاكل في الكلى.", "recommendation_low": ""},
+    "ketones": {"name_ar": "الكيتونات", "aliases": ["ket"], "range": (0, 0), "unit": "", "category": "تحليل البول", "recommendation_high": "وجودها قد يشير إلى السكري غير المتحكم به أو حمية منخفضة الكربوهيدرات.", "recommendation_low": ""},
+    "bilirubin": {"name_ar": "البيليروبين", "aliases": ["bil"], "range": (0, 0), "unit": "", "category": "تحليل البول", "recommendation_high": "وجوده في البول قد يشير إلى مشاكل في الكبد.", "recommendation_low": ""},
+    "pus": {"name_ar": "خلايا الصديد", "aliases": ["pus cells"], "range": (0, 5), "unit": "/HPF", "category": "تحليل البول", "recommendation_high": "ارتفاع عددها يؤكد وجود التهاب بولي.", "recommendation_low": ""},
+    "rbcs": {"name_ar": "كريات الدم الحمراء", "aliases": ["rbc's", "red blood cells", "blood"], "range": (0, 2), "unit": "/HPF", "category": "تحليل البول", "recommendation_high": "وجود دم في البول يتطلب استشارة طبية لمعرفة السبب.", "recommendation_low": ""},
+    "epithelial": {"name_ar": "الخلايا الطلائية", "aliases": ["epi cells"], "range": (0, 5), "unit": "/HPF", "category": "تحليل البول", "recommendation_high": "ارتفاعها قد يشير إلى التهاب.", "recommendation_low": ""},
+    "crystals": {"name_ar": "الأملاح/البلورات", "aliases": ["cryst"], "range": (0, 0), "unit": "", "category": "تحليل البول", "recommendation_high": "وجود أنواع معينة بكثرة قد يزيد من خطر تكون الحصوات.", "recommendation_low": ""},
+    "bacteria": {"name_ar": "البكتيريا", "aliases": ["bact"], "range": (0, 0), "unit": "", "category": "تحليل البول", "recommendation_high": "وجودها يؤكد وجود عدوى بكتيرية.", "recommendation_low": ""},
 }
 
-# --- دوال المعالجة والتحليل (بدون تغيير) ---
+# --- دوال المعالجة والتحليل (مع الخوارزمية المحدثة) ---
 def analyze_text_robust(text):
     if not text: return []
     results = []
@@ -86,23 +82,41 @@ def analyze_text_robust(text):
     text_lower = text.lower()
     found_numbers = [(m.group(1), m.start()) for m in re.finditer(r'(\d+\.?\d*)', text_lower)]
     found_tests = []
-    for key in KNOWLEDGE_BASE.keys():
-        pattern = re.compile(rf'\b{key}\b', re.IGNORECASE)
-        for match in pattern.finditer(text_lower):
-            found_tests.append({'key': key, 'pos': match.end()})
+    
+    for key, details in KNOWLEDGE_BASE.items():
+        search_terms = [key] + details.get("aliases", [])
+        for term in search_terms:
+            # استخدام re.escape للتعامل مع الأحرف الخاصة مثل "." في "w.b.c"
+            pattern = re.compile(rf'\b{re.escape(term)}\b', re.IGNORECASE)
+            for match in pattern.finditer(text_lower):
+                found_tests.append({'key': key, 'pos': match.end()})
+                # بمجرد العثور على تطابق واحد لهذا الفحص، ننتقل للفحص التالي
+                # هذا يمنع إضافة نفس الفحص عدة مرات إذا تطابق مع عدة أسماء مستعارة
+                break
+            else: # continue if the inner loop wasn't broken
+                continue
+            break # break if the inner loop was broken
+
     found_tests.sort(key=lambda x: x['pos'])
+    
+    unique_found_keys = []
     for test in found_tests:
+        if test['key'] not in [t['key'] for t in unique_found_keys]:
+             unique_found_keys.append(test)
+
+    for test in unique_found_keys:
         key = test['key']
-        if key in processed_tests: continue
         best_candidate_val = None
         min_distance = float('inf')
         for num_val, num_pos in found_numbers:
             distance = num_pos - test['pos']
-            if 0 < distance < min_distance:
+            if 0 < distance < 50: # تحديد مسافة بحث قصوى (50 حرفًا)
                 if num_pos + len(num_val) < len(text_lower) and text_lower[num_pos + len(num_val)].isalpha():
                     continue
                 min_distance = distance
                 best_candidate_val = num_val
+                break # نأخذ أول رقم قريب ومناسب
+        
         if best_candidate_val:
             try:
                 value = float(best_candidate_val)
@@ -116,11 +130,11 @@ def analyze_text_robust(text):
                     "recommendation": details.get(f"recommendation_{status.lower()}", details.get("recommendation_high", "") if status == "مرتفع" else ""),
                     "category": details.get("category", "عام")
                 })
-                processed_tests.add(key)
             except (ValueError, KeyError):
                 continue
     return results
 
+# ... (باقي الدوال والواجهة تبقى كما هي بدون أي تغيير) ...
 def display_results(results):
     if not results:
         st.error("لم يتم التعرف على أي فحوصات مدعومة في التقرير.")
@@ -142,7 +156,6 @@ def display_results(results):
         st.markdown("---")
 
 def get_ai_interpretation(api_key, results):
-    # ... (الكود الكامل للدالة موجود في الردود السابقة) ...
     pass
 
 def plot_signal(signal, title):
@@ -150,14 +163,12 @@ def plot_signal(signal, title):
     chart = alt.Chart(df).mark_line(color='#FF4B4B').encode(x=alt.X('Time', title='الزمن'), y=alt.Y('Amplitude', title='السعة'), tooltip=['Time', 'Amplitude']).properties(title=title).interactive()
     st.altair_chart(chart, use_container_width=True)
 
-# --- الواجهة الرئيسية للتطبيق ---
 st.title("⚕️ المجموعة الطبية الذكية")
 st.sidebar.header("اختر الأداة المطلوبة")
 mode = st.sidebar.radio("الأدوات المتاحة:", ("🔬 تحليل التقارير الطبية (OCR)", "🩺 مدقق الأعراض الذكي", "💓 محلل إشارات ECG"))
 st.sidebar.markdown("---")
 api_key_input = st.sidebar.text_input("🔑 أدخل مفتاح OpenAI API (اختياري)", type="password")
 
-# --- منطق العرض حسب الاختيار ---
 if mode == "🔬 تحليل التقارير الطبية (OCR)":
     st.header("🔬 تحليل تقرير طبي (صورة)")
     uploaded_file = st.file_uploader("📂 ارفع ملف صورة التقرير هنا", type=["png","jpg","jpeg"])
@@ -168,7 +179,7 @@ if mode == "🔬 تحليل التقارير الطبية (OCR)":
             try:
                 text = pytesseract.image_to_string(Image.open(io.BytesIO(file_bytes)), lang='eng+ara')
                 results = analyze_text_robust(text)
-                if len(results) < 2: # خفضنا العتبة لتكون أكثر مرونة
+                if len(results) < 2:
                     st.warning("المحاولة السريعة لم تجد نتائج كافية. جاري الانتقال إلى المحرك المتقدم...")
                     text = ""
                 else:
