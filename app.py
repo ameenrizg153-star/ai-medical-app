@@ -4,34 +4,25 @@ import io
 import numpy as np
 from PIL import Image
 import easyocr
+import base64
+from streamlit_js_eval import streamlit_js_eval
 
 # --- إعدادات الصفحة ---
-st.set_page_config(
-    page_title="Medical Report Analyzer",
-    page_icon="🔬",
-    layout="centered", # استخدام التخطيط المركزي لتبسيط الواجهة
-    initial_sidebar_state="collapsed"
-)
+st.set_page_config(page_title="المحلل الواقعي", layout="centered")
 
-# --- تحميل نموذج OCR (مع التخزين المؤقت) ---
+# --- تحميل نموذج OCR ---
 @st.cache_resource
 def load_ocr_model():
-    # استخدام اللغة الإنجليزية فقط لضمان الدقة ومنع التشويش
     return easyocr.Reader(['en'])
 
-# --- قاعدة المعرفة المركزة ---
+# --- قاعدة المعرفة (تبقى كما هي) ---
 KNOWLEDGE_BASE = {
-    "wbc": {"name_ar": "كريات الدم البيضاء", "aliases": ["w.b.c", "white blood cells"], "range": (4.0, 11.0), "category": "فحص الدم"},
-    "rbc": {"name_ar": "كريات الدم الحمراء", "aliases": ["r.b.c", "red blood cells"], "range": (4.1, 5.9), "category": "فحص الدم"},
-    "hemoglobin": {"name_ar": "الهيموغلوبين", "aliases": ["hb", "hgb"], "range": (13.0, 18.0), "category": "فحص الدم"},
-    "platelets": {"name_ar": "الصفائح الدموية", "aliases": ["plt"], "range": (150, 450), "category": "فحص الدم"},
-    "color": {"name_ar": "لون البول", "aliases": ["colour"], "range": (0, 0), "category": "تحليل البول"},
-    "appearance": {"name_ar": "عكارة البول", "aliases": ["clarity"], "range": (0, 0), "category": "تحليل البول"},
-    "ph": {"name_ar": "حموضة البول (pH)", "aliases": ["p.h", "p h"], "range": (4.5, 8.0), "category": "تحليل البول"},
-    "sg": {"name_ar": "الكثافة النوعية", "aliases": ["specific gravity", "gravity"], "range": (1.005, 1.030), "category": "تحليل البول"},
-    "leukocytes": {"name_ar": "كريات الدم البيضاء (بول)", "aliases": ["leukocyte", "leu"], "range": (0, 0), "category": "تحليل البول"},
-    "pus": {"name_ar": "خلايا الصديد", "aliases": ["pus cells"], "range": (0, 5), "category": "تحليل البول"},
-    "rbcs": {"name_ar": "كريات الدم الحمراء (بول)", "aliases": ["rbc's", "red blood cells", "blood"], "range": (0, 2), "category": "تحليل البول"},
+    "wbc": {"name_ar": "كريات الدم البيضاء", "aliases": ["w.b.c"], "range": (4.0, 11.0)},
+    "rbc": {"name_ar": "كريات الدم الحمراء", "aliases": ["r.b.c"], "range": (4.1, 5.9)},
+    "hemoglobin": {"name_ar": "الهيموغلوبين", "aliases": ["hb", "hgb"], "range": (13.0, 18.0)},
+    "platelets": {"name_ar": "الصفائح الدموية", "aliases": ["plt"], "range": (150, 450)},
+    "color": {"name_ar": "لون البول", "aliases": ["colour"], "range": (0, 0)},
+    "ph": {"name_ar": "حموضة البول (pH)", "aliases": ["p.h"], "range": (4.5, 8.0)},
 }
 
 # --- دالة تحليل النص (تبقى كما هي) ---
@@ -39,7 +30,6 @@ def analyze_text_robust(text):
     if not text: return []
     results = []
     text_lower = text.lower()
-    # ... (الكود الكامل للدالة موجود في الردود السابقة، وهو يعمل بشكل جيد)
     found_numbers = [(m.group(1), m.start()) for m in re.finditer(r'(\d+\.?\d*)', text_lower)]
     found_tests = []
     for key, details in KNOWLEDGE_BASE.items():
@@ -59,13 +49,9 @@ def analyze_text_robust(text):
     for test in unique_found_keys:
         key = test['key']
         best_candidate_val = None
-        min_distance = float('inf')
         for num_val, num_pos in found_numbers:
             distance = num_pos - test['pos']
             if 0 < distance < 50:
-                if num_pos + len(num_val) < len(text_lower) and text_lower[num_pos + len(num_val)].isalpha():
-                    continue
-                min_distance = distance
                 best_candidate_val = num_val
                 break
         if best_candidate_val:
@@ -73,71 +59,127 @@ def analyze_text_robust(text):
                 value = float(best_candidate_val)
                 details = KNOWLEDGE_BASE[key]
                 low, high = details["range"]
-                status = "طبيعي"
-                if value < low: status = "منخفض"
-                elif value > high: status = "مرتفع"
-                results.append({
-                    "name": details['name_ar'], "value": value, "status": status,
-                    "category": details.get("category", "عام")
-                })
+                status = "طبيعي" if low <= value <= high else "غير طبيعي"
+                results.append({"name": details['name_ar'], "value": value, "status": status})
             except (ValueError, KeyError):
                 continue
     return results
 
-# --- دالة عرض النتائج (مبسطة) ---
+# --- دالة عرض النتائج ---
 def display_results(results):
     if not results:
-        st.error("لم يتم التعرف على أي فحوصات مدعومة في التقرير.")
+        st.error("لم يتم التعرف على أي فحوصات مدعومة.")
         return
-    
     st.subheader("📊 نتائج التحليل")
     for r in results:
-        status_color = "green" if r['status'] == 'طبيعي' else "orange" if r['status'] == 'منخفض' else "red"
-        st.markdown(f"**{r['name']}**: {r['value']}  <span style='color:{status_color}; font-weight:bold;'>({r['status']})</span>", unsafe_allow_html=True)
-    st.markdown("---")
-    st.warning("هذا التحليل هو لأغراض إرشادية فقط ولا يغني عن استشارة الطبيب المختص.")
+        status_color = "green" if r['status'] == 'طبيعي' else "red"
+        st.markdown(f"**{r['name']}**: {r['value']} <span style='color:{status_color};'>({r['status']})</span>", unsafe_allow_html=True)
 
-# --- الواجهة الرئيسية للتطبيق (مبسطة ومركزة) ---
-st.title("🔬 المحلل الواقعي للتقارير الطبية")
-st.info("ارفع صورة واضحة لتقريرك الطبي (فحص الدم أو البول) وسيقوم التطبيق بتحليلها.")
+# --- كود HTML و JavaScript للمعالجة من جانب العميل ---
+html_code = """
+<div style="border: 2px dashed #ccc; padding: 20px; text-align: center; border-radius: 10px;">
+    <h3 style="color: #555;">ارفع صورة التقرير هنا</h3>
+    <p style="color: #777;">سيتم معالجة الصورة في متصفحك قبل إرسالها لضمان السرعة والأداء.</p>
+    <input type="file" id="uploader" accept="image/*" style="display: none;">
+    <button id="uploadBtn" onclick="document.getElementById('uploader').click();" style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">
+        اختر صورة
+    </button>
+    <div id="status" style="margin-top: 15px; color: #333;"></div>
+    <canvas id="canvas" style="display:none;"></canvas>
+</div>
 
-uploaded_file = st.file_uploader("📂 اختر صورة التقرير...", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
+<script>
+const uploader = document.getElementById('uploader');
+const statusDiv = document.getElementById('status');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const MAX_WIDTH = 1200; // حجم أقصى لتقليص الصورة
 
-if uploaded_file:
-    file_bytes = uploaded_file.getvalue()
-    text = None
+uploader.onchange = function(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    statusDiv.innerText = 'جاري معالجة الصورة...';
+    const reader = new FileReader();
     
-    with st.spinner("جاري تحليل الصورة... (قد يستغرق هذا بعض الوقت للصور الكبيرة)"):
-        try:
-            # معالجة الصور الكبيرة بكفاءة
-            img = Image.open(io.BytesIO(file_bytes))
-            MAX_SIZE = (1500, 1500)
-            img.thumbnail(MAX_SIZE, Image.Resampling.LANCZOS)
+    reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+            let width = img.width;
+            let height = img.height;
+
+            if (width > MAX_WIDTH) {
+                height *= MAX_WIDTH / width;
+                width = MAX_WIDTH;
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            ctx.drawImage(img, 0, 0, width, height);
             
-            img_processed = img.convert('L')
+            // تحويل الصورة المعالجة إلى بيانات Base64
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.9); // ضغط خفيف
             
-            buffered = io.BytesIO()
-            img_processed.save(buffered, format="PNG")
-            img_bytes_processed = buffered.getvalue()
-            
-            st.info(f"تمت معالجة الصورة بنجاح. (الحجم الجديد: {len(img_bytes_processed) / 1024:.1f} KB)")
-            
-            # تشغيل EasyOCR
+            // إرسال البيانات إلى Streamlit
+            window.parent.postMessage({
+                type: 'streamlit:setComponentValue',
+                key: 'processed_image',
+                value: dataUrl
+            }, '*');
+
+            statusDiv.innerText = 'تمت المعالجة! جاري التحليل في الخادم...';
+        }
+        img.src = e.target.result;
+    }
+    reader.readAsDataURL(file);
+}
+</script>
+"""
+
+# --- الواجهة الرئيسية للتطبيق ---
+st.title("🔬 المحلل الواقعي للتقارير الطبية")
+
+# استخدام st.session_state لتخزين الصورة المعالجة
+if 'processed_image' not in st.session_state:
+    st.session_state.processed_image = None
+
+# عرض واجهة الرفع HTML/JS
+st.components.v1.html(html_code, height=250)
+
+# الحصول على القيمة من JavaScript
+processed_image_data = streamlit_js_eval(key="processed_image")
+
+if processed_image_data:
+    st.session_state.processed_image = processed_image_data
+
+# إذا كانت هناك صورة معالجة، ابدأ التحليل
+if st.session_state.processed_image:
+    try:
+        # فك تشفير بيانات الصورة من Base64
+        header, encoded = st.session_state.processed_image.split(",", 1)
+        image_bytes = base64.b64decode(encoded)
+
+        st.image(image_bytes, caption="الصورة المعالجة التي تم إرسالها للخادم", width=300)
+
+        with st.spinner("الخادم يحلل الصورة الآن..."):
             reader = load_ocr_model()
-            raw_results = reader.readtext(img_bytes_processed, detail=0, paragraph=True)
+            raw_results = reader.readtext(image_bytes, detail=0, paragraph=True)
             text = "\n".join(raw_results)
-            st.success("تمت قراءة النص من الصورة!")
+            
+            st.success("تمت قراءة النص بنجاح!")
+            
+            with st.expander("📄 عرض النص الخام المستخرج"):
+                st.text_area("النص:", text, height=200)
+            
+            final_results = analyze_text_robust(text)
+            display_results(final_results)
 
-        except Exception as e:
-            st.error("حدث خطأ فادح أثناء تحليل الصورة.")
-            st.exception(e) # عرض تفاصيل الخطأ الكاملة
-            text = None
+        # إعادة تعيين الحالة لمنع إعادة التشغيل التلقائي
+        st.session_state.processed_image = None
+        streamlit_js_eval(js_expressions="document.getElementById('status').innerText = 'جاهز لتحليل صورة أخرى.';", key="reset_status")
 
-    # عرض النتائج النهائية
-    if text:
-        with st.expander("📄 عرض النص الخام المستخرج (للتدقيق)"):
-            st.text_area("النص:", text, height=200)
-        
-        final_results = analyze_text_robust(text)
-        display_results(final_results)
 
+    except Exception as e:
+        st.error("حدث خطأ فادح أثناء التحليل في الخادم.")
+        st.exception(e)
+        st.session_state.processed_image = None
