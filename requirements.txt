@@ -6,3 +6,4 @@ torch
 torchvision
 opencv-python-headless
 streamlit-js-eval
+requests
