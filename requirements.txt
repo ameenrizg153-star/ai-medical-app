@@ -12,3 +12,4 @@ tensorflow-cpu==2.12.0
 keras-ocr
 imgaug==0.4.0
 openai
+altair
