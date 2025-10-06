@@ -8,7 +8,7 @@ joblib
 easyocr
 torch
 torchvision
-pytesseract
+# pytesseract  <-- يمكنك حذفه
 openai
 tensorflow
 altair
