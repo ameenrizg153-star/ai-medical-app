@@ -5,10 +5,9 @@ import numpy as np
 from PIL import Image
 import easyocr
 import base64
-from streamlit_js_eval import streamlit_js_eval
 
 # --- إعدادات الصفحة ---
-st.set_page_config(page_title="المحلل الواقعي", layout="centered")
+st.set_page_config(page_title="المحلل المباشر", layout="centered")
 
 # --- تحميل نموذج OCR ---
 @st.cache_resource
@@ -75,11 +74,11 @@ def display_results(results):
         status_color = "green" if r['status'] == 'طبيعي' else "red"
         st.markdown(f"**{r['name']}**: {r['value']} <span style='color:{status_color};'>({r['status']})</span>", unsafe_allow_html=True)
 
-# --- كود HTML و JavaScript للمعالجة من جانب العميل ---
+# --- كود HTML و JavaScript (مع التحديث لإرسال البيانات عبر URL) ---
 html_code = """
 <div style="border: 2px dashed #ccc; padding: 20px; text-align: center; border-radius: 10px;">
     <h3 style="color: #555;">ارفع صورة التقرير هنا</h3>
-    <p style="color: #777;">سيتم معالجة الصورة في متصفحك قبل إرسالها لضمان السرعة والأداء.</p>
+    <p style="color: #777;">سيتم معالجة الصورة في متصفحك قبل إرسالها.</p>
     <input type="file" id="uploader" accept="image/*" style="display: none;">
     <button id="uploadBtn" onclick="document.getElementById('uploader').click();" style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">
         اختر صورة
@@ -93,7 +92,7 @@ const uploader = document.getElementById('uploader');
 const statusDiv = document.getElementById('status');
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
-const MAX_WIDTH = 1200; // حجم أقصى لتقليص الصورة
+const MAX_WIDTH = 1200;
 
 uploader.onchange = function(event) {
     const file = event.target.files[0];
@@ -117,17 +116,14 @@ uploader.onchange = function(event) {
             canvas.height = height;
             ctx.drawImage(img, 0, 0, width, height);
             
-            // تحويل الصورة المعالجة إلى بيانات Base64
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.9); // ضغط خفيف
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
             
-            // إرسال البيانات إلى Streamlit
-            window.parent.postMessage({
-                type: 'streamlit:setComponentValue',
-                key: 'processed_image',
-                value: dataUrl
-            }, '*');
+            // *** التعديل الجوهري: إرسال البيانات عبر URL بدلاً من session_state ***
+            const base64Data = dataUrl.split(',')[1];
+            // استخدام top لإعادة تحميل الصفحة بأكملها مع المعلمة الجديدة
+            window.top.location.href = window.top.location.pathname + '?img_data=' + encodeURIComponent(base64Data);
 
-            statusDiv.innerText = 'تمت المعالجة! جاري التحليل في الخادم...';
+            statusDiv.innerText = 'تمت المعالجة! جاري إعادة تحميل الصفحة للتحليل...';
         }
         img.src = e.target.result;
     }
@@ -137,29 +133,25 @@ uploader.onchange = function(event) {
 """
 
 # --- الواجهة الرئيسية للتطبيق ---
-st.title("🔬 المحلل الواقعي للتقارير الطبية")
+st.title("🔬 المحلل المباشر للتقارير الطبية")
 
-# استخدام st.session_state لتخزين الصورة المعالجة
-if 'processed_image' not in st.session_state:
-    st.session_state.processed_image = None
+# قراءة البيانات من عنوان URL
+query_params = st.query_params
+img_data_param = query_params.get("img_data")
 
-# عرض واجهة الرفع HTML/JS
-st.components.v1.html(html_code, height=250)
+# إذا لم تكن هناك بيانات في الـ URL، اعرض واجهة الرفع
+if not img_data_param:
+    st.components.v1.html(html_code, height=250)
+    st.info("يرجى رفع صورة لبدء التحليل.")
 
-# الحصول على القيمة من JavaScript
-processed_image_data = streamlit_js_eval(key="processed_image")
-
-if processed_image_data:
-    st.session_state.processed_image = processed_image_data
-
-# إذا كانت هناك صورة معالجة، ابدأ التحليل
-if st.session_state.processed_image:
+# إذا كانت هناك بيانات في الـ URL، ابدأ التحليل
+else:
     try:
-        # فك تشفير بيانات الصورة من Base64
-        header, encoded = st.session_state.processed_image.split(",", 1)
-        image_bytes = base64.b64decode(encoded)
+        # فك تشفير البيانات من URL
+        image_bytes = base64.b64decode(img_data_param)
 
-        st.image(image_bytes, caption="الصورة المعالجة التي تم إرسالها للخادم", width=300)
+        st.success("تم استقبال الصورة المعالجة من المتصفح بنجاح!")
+        st.image(image_bytes, caption="الصورة التي تم تحليلها", width=300)
 
         with st.spinner("الخادم يحلل الصورة الآن..."):
             reader = load_ocr_model()
@@ -173,13 +165,16 @@ if st.session_state.processed_image:
             
             final_results = analyze_text_robust(text)
             display_results(final_results)
-
-        # إعادة تعيين الحالة لمنع إعادة التشغيل التلقائي
-        st.session_state.processed_image = None
-        streamlit_js_eval(js_expressions="document.getElementById('status').innerText = 'جاهز لتحليل صورة أخرى.';", key="reset_status")
-
+        
+        # إضافة زر للعودة والتحليل مرة أخرى
+        if st.button("تحليل صورة أخرى"):
+            st.query_params.clear()
+            st.rerun()
 
     except Exception as e:
         st.error("حدث خطأ فادح أثناء التحليل في الخادم.")
         st.exception(e)
-        st.session_state.processed_image = None
+        if st.button("المحاولة مرة أخرى"):
+            st.query_params.clear()
+            st.rerun()
+
