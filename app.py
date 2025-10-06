@@ -1,20 +1,24 @@
 import streamlit as st
 import re
 import io
-import numpy as np
 from PIL import Image
 import easyocr
-import base64
+import cv2
+import numpy as np
 
 # --- إعدادات الصفحة ---
-st.set_page_config(page_title="المحلل المباشر", layout="centered")
+st.set_page_config(
+    page_title="المحلل الواقعي",
+    page_icon="🔬",
+    layout="centered"
+)
 
 # --- تحميل نموذج OCR ---
 @st.cache_resource
 def load_ocr_model():
     return easyocr.Reader(['en'])
 
-# --- قاعدة المعرفة (تبقى كما هي) ---
+# --- قاعدة المعرفة المركزة ---
 KNOWLEDGE_BASE = {
     "wbc": {"name_ar": "كريات الدم البيضاء", "aliases": ["w.b.c"], "range": (4.0, 11.0)},
     "rbc": {"name_ar": "كريات الدم الحمراء", "aliases": ["r.b.c"], "range": (4.1, 5.9)},
@@ -23,6 +27,30 @@ KNOWLEDGE_BASE = {
     "color": {"name_ar": "لون البول", "aliases": ["colour"], "range": (0, 0)},
     "ph": {"name_ar": "حموضة البول (pH)", "aliases": ["p.h"], "range": (4.5, 8.0)},
 }
+
+# --- دالة الضغط المستوحاة من WhatsApp ---
+def compress_like_whatsapp(image_bytes, max_size=1280, quality=80):
+    """
+    تضغط الصورة بطريقة مشابهة لـ WhatsApp لتقليل الحجم وتحسين الأداء.
+    """
+    try:
+        img = Image.open(io.BytesIO(image_bytes))
+        
+        # 1. إزالة بيانات الشفافية (إذا كانت موجودة) لضمان التوافق مع JPEG
+        if img.mode in ("RGBA", "P"):
+            img = img.convert("RGB")
+            
+        # 2. تقليل الأبعاد مع الحفاظ على النسبة
+        img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+        
+        # 3. حفظ الصورة بجودة مضغوطة في الذاكرة
+        output_buffer = io.BytesIO()
+        img.save(output_buffer, format="JPEG", quality=quality, optimize=True)
+        
+        return output_buffer.getvalue()
+    except Exception as e:
+        st.warning(f"حدث خطأ أثناء ضغط الصورة: {e}. سيتم استخدام الصورة الأصلية.")
+        return image_bytes
 
 # --- دالة تحليل النص (تبقى كما هي) ---
 def analyze_text_robust(text):
@@ -67,114 +95,46 @@ def analyze_text_robust(text):
 # --- دالة عرض النتائج ---
 def display_results(results):
     if not results:
-        st.error("لم يتم التعرف على أي فحوصات مدعومة.")
+        st.error("لم يتم التعرف على أي فحوصات مدعومة في التقرير.")
         return
     st.subheader("📊 نتائج التحليل")
     for r in results:
         status_color = "green" if r['status'] == 'طبيعي' else "red"
         st.markdown(f"**{r['name']}**: {r['value']} <span style='color:{status_color};'>({r['status']})</span>", unsafe_allow_html=True)
 
-# --- كود HTML و JavaScript (مع التحديث لإرسال البيانات عبر URL) ---
-html_code = """
-<div style="border: 2px dashed #ccc; padding: 20px; text-align: center; border-radius: 10px;">
-    <h3 style="color: #555;">ارفع صورة التقرير هنا</h3>
-    <p style="color: #777;">سيتم معالجة الصورة في متصفحك قبل إرسالها.</p>
-    <input type="file" id="uploader" accept="image/*" style="display: none;">
-    <button id="uploadBtn" onclick="document.getElementById('uploader').click();" style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">
-        اختر صورة
-    </button>
-    <div id="status" style="margin-top: 15px; color: #333;"></div>
-    <canvas id="canvas" style="display:none;"></canvas>
-</div>
-
-<script>
-const uploader = document.getElementById('uploader');
-const statusDiv = document.getElementById('status');
-const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
-const MAX_WIDTH = 1200;
-
-uploader.onchange = function(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    statusDiv.innerText = 'جاري معالجة الصورة...';
-    const reader = new FileReader();
-    
-    reader.onload = function(e) {
-        const img = new Image();
-        img.onload = function() {
-            let width = img.width;
-            let height = img.height;
-
-            if (width > MAX_WIDTH) {
-                height *= MAX_WIDTH / width;
-                width = MAX_WIDTH;
-            }
-
-            canvas.width = width;
-            canvas.height = height;
-            ctx.drawImage(img, 0, 0, width, height);
-            
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-            
-            // *** التعديل الجوهري: إرسال البيانات عبر URL بدلاً من session_state ***
-            const base64Data = dataUrl.split(',')[1];
-            // استخدام top لإعادة تحميل الصفحة بأكملها مع المعلمة الجديدة
-            window.top.location.href = window.top.location.pathname + '?img_data=' + encodeURIComponent(base64Data);
-
-            statusDiv.innerText = 'تمت المعالجة! جاري إعادة تحميل الصفحة للتحليل...';
-        }
-        img.src = e.target.result;
-    }
-    reader.readAsDataURL(file);
-}
-</script>
-"""
-
 # --- الواجهة الرئيسية للتطبيق ---
-st.title("🔬 المحلل المباشر للتقارير الطبية")
+st.title("🔬 المحلل الواقعي للتقارير الطبية")
+st.info("ارفع صورة واضحة لتقريرك الطبي، سيتم ضغطها وتحليلها تلقائيًا.")
 
-# قراءة البيانات من عنوان URL
-query_params = st.query_params
-img_data_param = query_params.get("img_data")
+uploaded_file = st.file_uploader("📂 اختر صورة التقرير...", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
 
-# إذا لم تكن هناك بيانات في الـ URL، اعرض واجهة الرفع
-if not img_data_param:
-    st.components.v1.html(html_code, height=250)
-    st.info("يرجى رفع صورة لبدء التحليل.")
-
-# إذا كانت هناك بيانات في الـ URL، ابدأ التحليل
-else:
-    try:
-        # فك تشفير البيانات من URL
-        image_bytes = base64.b64decode(img_data_param)
-
-        st.success("تم استقبال الصورة المعالجة من المتصفح بنجاح!")
-        st.image(image_bytes, caption="الصورة التي تم تحليلها", width=300)
-
-        with st.spinner("الخادم يحلل الصورة الآن..."):
+if uploaded_file:
+    original_bytes = uploaded_file.getvalue()
+    st.image(original_bytes, caption=f"الصورة الأصلية ({(len(original_bytes) / 1024):.1f} KB)", width=250)
+    
+    with st.spinner("جاري ضغط الصورة وتحليلها..."):
+        try:
+            # *** تطبيق الضغط المستوحى من WhatsApp ***
+            compressed_bytes = compress_like_whatsapp(original_bytes)
+            
+            st.success(f"تم ضغط الصورة بنجاح! (الحجم الجديد: {(len(compressed_bytes) / 1024):.1f} KB)")
+            
+            # تشغيل EasyOCR على الصورة المضغوطة
             reader = load_ocr_model()
-            raw_results = reader.readtext(image_bytes, detail=0, paragraph=True)
+            raw_results = reader.readtext(compressed_bytes, detail=0, paragraph=True)
             text = "\n".join(raw_results)
             
-            st.success("تمت قراءة النص بنجاح!")
-            
-            with st.expander("📄 عرض النص الخام المستخرج"):
-                st.text_area("النص:", text, height=200)
-            
-            final_results = analyze_text_robust(text)
-            display_results(final_results)
+            st.success("تمت قراءة النص من الصورة المضغوطة!")
+
+        except Exception as e:
+            st.error("حدث خطأ فادح أثناء تحليل الصورة.")
+            st.exception(e)
+            text = None
+
+    # عرض النتائج النهائية
+    if text:
+        with st.expander("📄 عرض النص الخام المستخرج (للتدقيق)"):
+            st.text_area("النص:", text, height=200)
         
-        # إضافة زر للعودة والتحليل مرة أخرى
-        if st.button("تحليل صورة أخرى"):
-            st.query_params.clear()
-            st.rerun()
-
-    except Exception as e:
-        st.error("حدث خطأ فادح أثناء التحليل في الخادم.")
-        st.exception(e)
-        if st.button("المحاولة مرة أخرى"):
-            st.query_params.clear()
-            st.rerun()
-
+        final_results = analyze_text_robust(text)
+        display_results(final_results)
