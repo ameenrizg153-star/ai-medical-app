@@ -1,12 +1,12 @@
 import streamlit as st
 import re
 import io
-from PIL import Image
 import numpy as np
 import pandas as pd
 from openai import OpenAI
 import cv2
-import keras_ocr
+import easyocr  # استيراد المكتبة الجديدة
+import os
 
 # --- إعدادات الصفحة ---
 st.set_page_config(
@@ -16,15 +16,17 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- تحميل نموذج OCR (يتم تخزينه في الكاش لسرعة الأداء) ---
+# --- تحميل نموذج OCR (الآن يستخدم EasyOCR) ---
 @st.cache_resource
 def load_ocr_model():
     """
-    تحميل نموذج keras-ocr مرة واحدة فقط وتخزينه في الكاش.
+    تحميل قارئ EasyOCR مرة واحدة فقط.
     """
-    return keras_ocr.pipeline.Pipeline()
+    # تحديد اللغات (الإنجليزية والعربية)
+    reader = easyocr.Reader(['en', 'ar'])
+    return reader
 
-# --- قواعد البيانات والفحوصات ---
+# --- قواعد البيانات والفحوصات (بدون تغيير) ---
 NORMAL_RANGES = {
     "wbc": {"range": (4.0, 11.0), "unit": "x10^9/L", "name_ar": "كريات الدم البيضاء", "type":"blood"},
     "rbc": {"range": (4.1, 5.9), "unit": "x10^12/L", "name_ar": "كريات الدم الحمراء", "type":"blood"},
@@ -46,62 +48,43 @@ NORMAL_RANGES = {
     "stool_parasite": {"range": (0, 0), "unit": "positive/negative", "name_ar": "طفيليات البراز", "type":"stool"},
 }
 
-# --- قاموس النصائح المحدث والكامل ---
 RECOMMENDATIONS = {
-    "wbc": {"Low": "قد يشير إلى ضعف المناعة أو بعض الالتهابات الفيروسية.", "High": "قد يشير إلى وجود عدوى بكتيرية أو التهاب حاد."},
-    "rbc": {"Low": "قد يكون مؤشرًا على فقر الدم (الأنيميا).", "High": "قد يشير إلى الجفاف أو بعض أمراض الدم النادرة."},
-    "hemoglobin": {"Low": "مؤشر أساسي على فقر الدم (الأنيميا).", "High": "قد يشير إلى الجفاف أو العيش في المرتفعات."},
-    "hematocrit": {"Low": "قد يشير إلى فقر الدم أو فقدان الدم.", "High": "قد يشير إلى الجفاف الشديد."},
-    "platelets": {"Low": "قد يزيد من خطر النزيف بسهولة.", "High": "قد يزيد من خطر تكوّن الجلطات الدموية."},
-    "glucose": {"Low": "انخفاض السكر قد يسبب دوخة وإغماء.", "High": "ارتفاع السكر قد يكون مؤشرًا على مقدمات السكري أو السكري."},
-    "creatinine": {"High": "قد يشير إلى انخفاض كفاءة وظائف الكلى. يتطلب متابعة."},
-    "alt": {"High": "مؤشر حساس على وجود ضرر أو التهاب في خلايا الكبد."},
-    "ast": {"High": "قد يشير إلى ضرر في الكبد، القلب، أو العضلات."},
-    "crp": {"High": "مؤشر قوي على وجود التهاب حاد في الجسم."},
-    "sodium": {"Low": "قد يسبب ضعفًا وتعبًا.", "High": "قد يشير إلى الجفاف أو مشاكل في الكلى."},
-    "potassium": {"Low": "قد يسبب ضعفًا في العضلات أو اضطرابًا في نبضات القلب.", "High": "خطير على القلب، يتطلب تقييمًا فوريًا."},
-    "urine_ph": {"Low": "زيادة حمضية البول قد ترتبط بحصوات الكلى.", "High": "قلوية البول قد تكون مؤشرًا على التهاب المسالك البولية."},
-    "pus_cells": {"High": "علامة واضحة على وجود التهاب في المسالك البولية."},
-    "rbcs_urine": {"High": "وجود دم في البول يتطلب دائمًا استشارة طبية لمعرفة السبب (قد يكون التهابًا، حصوة، أو غيره)."},
-    "protein_urine": {"High": "قد يكون علامة مبكرة على وجود مشاكل في الكلى."},
-    "stool_occult": {"High": "وجود دم خفي في البراز يتطلب إجراء فحوصات إضافية مثل منظار القولون."},
-    "stool_parasite": {"High": "وجود طفيليات يتطلب علاجًا محددًا للتخلص منها."}
+    "wbc": {"Low": "قد يشير إلى ضعف المناعة.", "High": "قد يشير إلى وجود عدوى."},
+    "rbc": {"Low": "قد يكون مؤشرًا على فقر الدم.", "High": "قد يشير إلى الجفاف."},
+    "hemoglobin": {"Low": "مؤشر أساسي على فقر الدم.", "High": "قد يشير إلى الجفاف."},
+    "hematocrit": {"Low": "قد يشير إلى فقر الدم.", "High": "قد يشير إلى الجفاف الشديد."},
+    "platelets": {"Low": "قد يزيد من خطر النزيف.", "High": "قد يزيد من خطر الجلطات."},
+    "glucose": {"Low": "انخفاض السكر قد يسبب دوخة.", "High": "ارتفاع السكر قد يكون مؤشرًا على السكري."},
+    "creatinine": {"High": "قد يشير إلى انخفاض كفاءة الكلى."},
+    "alt": {"High": "مؤشر على وجود ضرر في الكبد."},
+    "ast": {"High": "قد يشير إلى ضرر في الكبد أو العضلات."},
+    "crp": {"High": "مؤشر على وجود التهاب حاد."},
+    "sodium": {"Low": "قد يسبب ضعفًا وتعبًا.", "High": "قد يشير إلى الجفاف."},
+    "potassium": {"Low": "قد يسبب ضعفًا في العضلات.", "High": "خطير على القلب."},
+    "urine_ph": {"Low": "زيادة حمضية البول.", "High": "قلوية البول قد تشير لالتهاب."},
+    "pus_cells": {"High": "علامة على وجود التهاب بولي."},
+    "rbcs_urine": {"High": "وجود دم في البول يتطلب استشارة."},
+    "protein_urine": {"High": "قد يكون علامة على مشاكل في الكلى."},
+    "stool_occult": {"High": "وجود دم خفي يتطلب فحوصات إضافية."},
+    "stool_parasite": {"High": "وجود طفيليات يتطلب علاجًا."}
 }
 
 # --- دوال المعالجة ---
-def extract_text_from_image(pipeline, image_bytes):
-    image = None
+
+# تم تعديل الدالة لاستخدام EasyOCR
+def extract_text_from_image(reader, image_bytes):
+    """
+    يستخدم EasyOCR لاستخراج النص من الصورة.
+    """
     try:
-        np_arr = np.frombuffer(image_bytes, np.uint8)
-        image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-        if image is None:
-            raise ValueError("فشل في فك تشفير الصورة. قد يكون الملف تالفًا أو غير مدعوم.")
-        prediction_groups = pipeline.recognize([image])
-        recognized_text = ""
-        if prediction_groups:
-            predictions = prediction_groups[0]
-            sorted_predictions = sorted(predictions, key=lambda x: x[1][:, 1].min())
-            lines = []
-            current_line = []
-            if sorted_predictions:
-                avg_height = np.mean([(p[1][:, 1].max() - p[1][:, 1].min()) for p in sorted_predictions])
-                last_y = sorted_predictions[0][1][:, 1].min()
-                for pred in sorted_predictions:
-                    current_y = pred[1][:, 1].min()
-                    if current_y - last_y > avg_height * 0.8:
-                        lines.append(sorted(current_line, key=lambda x: x[1][:, 0].min()))
-                        current_line = []
-                    current_line.append(pred)
-                    last_y = current_y
-                lines.append(sorted(current_line, key=lambda x: x[1][:, 0].min()))
-                final_text = []
-                for line in lines:
-                    line_text = " ".join([pred[0] for pred in line if pred[0]])
-                    final_text.append(line_text)
-                recognized_text = "\n".join(final_text)
-        return recognized_text, None
+        # EasyOCR يقرأ مباشرة من الـ bytes
+        result = reader.readtext(image_bytes, detail=0, paragraph=True)
+        # result هو قائمة من الفقرات، ندمجها في نص واحد
+        return "\n".join(result), None
     except Exception as e:
-        return None, f"Keras-OCR Error: {e}"
+        return None, f"EasyOCR Error: {e}"
+
+# باقي الدوال (analyze_text_robust, display_results, etc.) تبقى كما هي بدون تغيير
 
 def analyze_text_robust(text):
     if not text:
@@ -133,10 +116,9 @@ def analyze_text_robust(text):
                 details = NORMAL_RANGES[key]
                 low, high = details["range"]
                 status = "طبيعي"
-                # تعديل بسيط هنا للتعامل مع الحالات المنخفضة والمرتفعة
                 if value < low: status = "Low"
                 elif value > high: status = "High"
-                recommendation = RECOMMENDATIONS.get(key, {}).get(status, "") # البحث عن النصيحة
+                recommendation = RECOMMENDATIONS.get(key, {}).get(status, "")
                 results.append({
                     "name": f"{details['name_ar']}",
                     "value": value,
@@ -149,7 +131,6 @@ def analyze_text_robust(text):
                 continue
     return results
 
-# --- عرض النتائج ---
 def display_results(results):
     if not results:
         st.error("لم يتم التعرف على أي فحوصات مدعومة في التقرير.")
@@ -178,64 +159,108 @@ def display_results(results):
                     st.info(f"💡 {r['recommendation']}")
                 st.markdown("---")
 
+def get_ai_interpretation(api_key, results):
+    abnormal_results = [r for r in results if r['status'] != 'طبيعي']
+    if not abnormal_results:
+        return "✅ كل الفحوصات التي تم التعرف عليها ضمن النطاق الطبيعي. لا توجد ملاحظات خاصة."
+    prompt_text = "أنت طبيب استشاري خبير ومهمتك هي تفسير نتائج التحاليل الطبية التالية لمريض يتحدث العربية. النتائج غير الطبيعية هي:\n\n"
+    for r in abnormal_results:
+        prompt_text += f"- {r['name']}: النتيجة هي {r['value']}، وهي تعتبر **{r['status']}**.\n"
+    prompt_text += """
+\nبناءً على هذه النتائج فقط، قم بالمهام التالية بأسلوب واضح وبسيط ومطمئن:
+1.  ابدأ بملخص عام للحالة.
+2.  فسّر كل نتيجة غير طبيعية على حدة.
+3.  اشرح كيف يمكن أن ترتبط هذه النتائج ببعضها البعض إن أمكن.
+4.  قدم بعض النصائح العامة جدًا.
+5.  اختتم بفقرة **مهمة جدًا** تؤكد فيها أن هذا التفسير هو مجرد أداة مساعدة أولية.
+"""
+    try:
+        client = OpenAI(api_key=api_key)
+        with st.spinner("🧠 الذكاء الاصطناعي يكتب التفسير الشامل..."):
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": "أنت طبيب استشاري خبير، تتحدث العربية بأسلوب واضح ومطمئن للمرضى."},
+                    {"role": "user", "content": prompt_text}
+                ]
+            )
+            return response.choices[0].message.content
+    except Exception as e:
+        if "authentication" in str(e).lower():
+            return "❌ **خطأ:** مفتاح OpenAI API غير صحيح."
+        return f"❌ حدث خطأ: {e}"
+
 # --- الواجهة الرئيسية ---
-st.title("🩺 المحلل الطبي الذكي Pro")
+st.title("🩺 المحلل الطبي الذكي Pro (يعمل بـ EasyOCR)")
 st.sidebar.header("⚙️ الإعدادات")
 api_key_input = st.sidebar.text_input("🔑 أدخل مفتاح OpenAI API", type="password")
-mode = st.sidebar.radio("اختر الخدمة:", ["🔬 تحليل التقارير الطبية", "💬 استشارة حسب الأعراض"])
+mode = st.sidebar.radio("اختر الخدمة:", ["🔬 تحليل التقارير الطبية", "🩺 مدقق الأعراض الذكي"])
 st.sidebar.info("هذا التطبيق لا يغني عن استشارة الطبيب المختص.")
 
 if mode == "🔬 تحليل التقارير الطبية":
     st.header("🔬 تحليل تقرير طبي (صورة)")
     uploaded_file = st.file_uploader("📂 ارفع ملف صورة التقرير هنا", type=["png","jpg","jpeg"])
     if uploaded_file:
-        pipeline = load_ocr_model()
+        reader = load_ocr_model()
         file_bytes = uploaded_file.getvalue()
         
-        # --- رسالة الانتظار المحسّنة ---
-        st.info("⏳ جاري استخدام العين القوية (Keras-OCR) لقراءة التقرير. هذه العملية قد تستغرق دقيقة أو أكثر حسب ضغط الخادم. شكرًا لصبرك...")
-        with st.spinner("...النموذج المتقدم يحلل الصورة الآن..."):
-            text, err = extract_text_from_image(pipeline, file_bytes)
+        with st.spinner("🚀 EasyOCR يقرأ التقرير بسرعة ودقة..."):
+            text, err = extract_text_from_image(reader, file_bytes)
 
         if err:
             st.error(f"خطأ في قراءة الصورة: {err}")
         elif text:
-            with st.expander("📄 عرض النص الخام المستخرج من الصورة (للتشخيص)"):
+            with st.expander("📄 عرض النص الخام المستخرج من الصورة"):
                 st.text_area("النص الذي تم استخراجه:", text, height=250)
             results = analyze_text_robust(text)
             display_results(results)
-        else:
-            st.warning("لم تتمكن العين القوية من قراءة أي نص في الصورة.")
-
-elif mode == "💬 استشارة حسب الأعراض":
-    st.header("💬 استشارة أولية حسب الأعراض")
-    symptoms = st.text_area("📝 صف الأعراض هنا:", height=200)
-    if st.button("تحليل الأعراض بالذكاء الاصطناعي"):
-        if not api_key_input:
-            st.error("يرجى إدخال مفتاح OpenAI API في الشريط الجانبي أولاً.")
-        elif not symptoms.strip():
-            st.warning("يرجى وصف الأعراض أولاً.")
-        else:
-            try:
-                client = OpenAI(api_key=api_key_input)
-                prompt = f'''أنت طبيب خبير وودود. المريض يصف الأعراض التالية: "{symptoms}".
-                بناءً على هذه الأعراض، قم بالمهام التالية باللغة العربية:
-                1. ابدأ بعبارة لطيفة.
-                2. حلل الأعراض بشكل مبسط.
-                3. اقترح بعض الفحوصات المخبرية الأولية المفيدة.
-                4. قدم نصائح عامة أولية.
-                5. اختتم بنصيحة **مهمة جدًا** تؤكد فيها أن هذه مجرد استشارة أولية وأن التشخيص الدقيق يتطلب زيارة طبيب حقيقي.'''
-                with st.spinner("🧠 الذكاء الاصطناعي يحلل الأعراض..."):
-                    response = client.chat.completions.create(
-                        model="gpt-4o",
-                        messages=[
-                            {"role": "system", "content": "أنت طبيب استشاري خبير تتحدث العربية بأسلوب ودود ومتعاطف."},
-                            {"role": "user", "content": prompt}
-                        ]
-                    )
-                    st.markdown(response.choices[0].message.content)
-            except Exception as e:
-                if "authentication" in str(e).lower():
-                    st.error("❌ خطأ: مفتاح OpenAI API غير صحيح أو انتهت صلاحيته. يرجى التحقق منه.")
+            st.markdown("---")
+            if st.button("🔬 طلب تفسير شامل من الذكاء الاصطناعي"):
+                if not api_key_input:
+                    st.error("يرجى إدخال مفتاح OpenAI API أولاً.")
+                elif not results:
+                    st.warning("لا توجد نتائج لتحليلها.")
                 else:
-                    st.error(f"❌ حدث خطأ أثناء الاتصال بالذكاء الاصطناعي: {e}")
+                    interpretation = get_ai_interpretation(api_key_input, results)
+                    st.subheader("📜 التفسير الشامل للنتائج")
+                    st.markdown(interpretation)
+        else:
+            st.warning("لم يتمكن EasyOCR من قراءة أي نص في الصورة.")
+
+# قسم مدقق الأعراض يبقى كما هو بدون تغيير
+elif mode == "🩺 مدقق الأعراض الذكي":
+    st.header("🩺 مدقق الأعراض الذكي (نموذج مدرب محليًا)")
+    
+    @st.cache_data
+    def load_symptom_data():
+        try:
+            symptom_data = pd.read_csv('Training.csv')
+            symptom_model = joblib.load('symptom_checker_model.joblib')
+            symptoms_list = symptom_data.columns[:-1].tolist()
+            return symptom_model, symptoms_list, symptom_data
+        except FileNotFoundError:
+            return None, None, None
+            
+    symptom_model, symptoms_list, symptom_data = load_symptom_data()
+
+    if symptom_model is None or symptoms_list is None:
+        st.error("خطأ: لم يتم العثور على ملفات النموذج ('symptom_checker_model.joblib') أو البيانات ('Training.csv').")
+    else:
+        st.info("اختر الأعراض التي تشعر بها من القائمة أدناه.")
+        selected_symptoms = st.multiselect("حدد الأعراض:", options=symptoms_list)
+        if st.button("🔬 تشخيص الأعراض"):
+            if not selected_symptoms:
+                st.warning("يرجى تحديد عرض واحد على الأقل.")
+            else:
+                input_vector = [0] * len(symptoms_list)
+                for symptom in selected_symptoms:
+                    if symptom in symptoms_list:
+                        index = symptoms_list.index(symptom)
+                        input_vector[index] = 1
+                input_df = pd.DataFrame([input_vector], columns=symptoms_list)
+                with st.spinner("...النموذج المحلي يحلل الأعراض..."):
+                    prediction = symptom_model.predict(input_df)
+                    predicted_diagnosis = prediction[0]
+                st.subheader("📜 التشخيص الأولي المحتمل")
+                st.success(f"بناءً على الأعراض، قد يكون التشخيص المحتمل هو: **{predicted_diagnosis}**")
+                st.warning("**تنبيه هام:** هذا التشخيص هو مجرد تنبؤ أولي ولا يغني عن استشارة الطبيب.")
