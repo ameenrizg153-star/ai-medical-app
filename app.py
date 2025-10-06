@@ -2,23 +2,16 @@ import streamlit as st
 import re
 import io
 from PIL import Image
-import easyocr
-import cv2
-import numpy as np
+import requests
+import json
 
 # --- إعدادات الصفحة ---
-st.set_page_config(
-    page_title="المحلل الواقعي",
-    page_icon="🔬",
-    layout="centered"
-)
+st.set_page_config(page_title="المحلل الموثوق", page_icon="✅", layout="centered")
 
-# --- تحميل نموذج OCR ---
-@st.cache_resource
-def load_ocr_model():
-    return easyocr.Reader(['en'])
+# --- مفتاح API لخدمة OCR (تم وضع مفتاحك هنا) ---
+OCR_API_KEY = "K87420833888957" 
 
-# --- قاعدة المعرفة المركزة ---
+# --- قاعدة المعرفة ---
 KNOWLEDGE_BASE = {
     "wbc": {"name_ar": "كريات الدم البيضاء", "aliases": ["w.b.c"], "range": (4.0, 11.0)},
     "rbc": {"name_ar": "كريات الدم الحمراء", "aliases": ["r.b.c"], "range": (4.1, 5.9)},
@@ -28,31 +21,20 @@ KNOWLEDGE_BASE = {
     "ph": {"name_ar": "حموضة البول (pH)", "aliases": ["p.h"], "range": (4.5, 8.0)},
 }
 
-# --- دالة الضغط المستوحاة من WhatsApp ---
-def compress_like_whatsapp(image_bytes, max_size=1280, quality=80):
-    """
-    تضغط الصورة بطريقة مشابهة لـ WhatsApp لتقليل الحجم وتحسين الأداء.
-    """
+# --- دالة الضغط ---
+def preprocess_image(image_bytes, max_size=1500, quality=85):
     try:
         img = Image.open(io.BytesIO(image_bytes))
-        
-        # 1. إزالة بيانات الشفافية (إذا كانت موجودة) لضمان التوافق مع JPEG
         if img.mode in ("RGBA", "P"):
             img = img.convert("RGB")
-            
-        # 2. تقليل الأبعاد مع الحفاظ على النسبة
         img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
-        
-        # 3. حفظ الصورة بجودة مضغوطة في الذاكرة
         output_buffer = io.BytesIO()
-        img.save(output_buffer, format="JPEG", quality=quality, optimize=True)
-        
+        img.save(output_buffer, format="JPEG", quality=quality)
         return output_buffer.getvalue()
-    except Exception as e:
-        st.warning(f"حدث خطأ أثناء ضغط الصورة: {e}. سيتم استخدام الصورة الأصلية.")
+    except Exception:
         return image_bytes
 
-# --- دالة تحليل النص (تبقى كما هي) ---
+# --- دالة تحليل النص ---
 def analyze_text_robust(text):
     if not text: return []
     results = []
@@ -95,45 +77,55 @@ def analyze_text_robust(text):
 # --- دالة عرض النتائج ---
 def display_results(results):
     if not results:
-        st.error("لم يتم التعرف على أي فحوصات مدعومة في التقرير.")
+        st.error("لم يتم التعرف على أي فحوصات مدعومة في النص المستخرج.")
         return
     st.subheader("📊 نتائج التحليل")
     for r in results:
         status_color = "green" if r['status'] == 'طبيعي' else "red"
         st.markdown(f"**{r['name']}**: {r['value']} <span style='color:{status_color};'>({r['status']})</span>", unsafe_allow_html=True)
 
-# --- الواجهة الرئيسية للتطبيق ---
-st.title("🔬 المحلل الواقعي للتقارير الطبية")
-st.info("ارفع صورة واضحة لتقريرك الطبي، سيتم ضغطها وتحليلها تلقائيًا.")
+# --- الواجهة الرئيسية ---
+st.title("✅ المحلل الموثوق للتقارير الطبية")
+st.info("يعمل هذا التطبيق باستخدام خدمة OCR خارجية لضمان الموثوقية والسرعة.")
 
 uploaded_file = st.file_uploader("📂 اختر صورة التقرير...", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
 
 if uploaded_file:
     original_bytes = uploaded_file.getvalue()
-    st.image(original_bytes, caption=f"الصورة الأصلية ({(len(original_bytes) / 1024):.1f} KB)", width=250)
+    st.image(original_bytes, caption="الصورة الأصلية", width=250)
     
-    with st.spinner("جاري ضغط الصورة وتحليلها..."):
+    with st.spinner("جاري ضغط الصورة وإرسالها للتحليل..."):
         try:
-            # *** تطبيق الضغط المستوحى من WhatsApp ***
-            compressed_bytes = compress_like_whatsapp(original_bytes)
+            # 1. ضغط الصورة
+            compressed_bytes = preprocess_image(original_bytes)
             
-            st.success(f"تم ضغط الصورة بنجاح! (الحجم الجديد: {(len(compressed_bytes) / 1024):.1f} KB)")
+            # 2. إرسال الصورة إلى خدمة OCR
+            payload = {'isOverlayRequired': False, 'apikey': OCR_API_KEY, 'language': 'eng'}
+            files = {'file': ('image.jpg', compressed_bytes, 'image/jpeg')}
+            response = requests.post('https://api.ocr.space/parse/image', files=files, data=payload)
+            response.raise_for_status()
             
-            # تشغيل EasyOCR على الصورة المضغوطة
-            reader = load_ocr_model()
-            raw_results = reader.readtext(compressed_bytes, detail=0, paragraph=True)
-            text = "\n".join(raw_results)
-            
-            st.success("تمت قراءة النص من الصورة المضغوطة!")
+            result = response.json()
 
+            if result.get('IsErroredOnProcessing') or not result.get('ParsedResults'):
+                error_message = result.get('ErrorMessage', ["خطأ غير معروف من خدمة OCR."])[0]
+                st.error(f"خطأ من خدمة OCR: {error_message}")
+                text = None
+            else:
+                text = result['ParsedResults'][0]['ParsedText']
+                st.success("تم استلام النص بنجاح من الخدمة الخارجية!")
+
+        except requests.exceptions.RequestException as e:
+            st.error(f"حدث خطأ في الشبكة أثناء الاتصال بخدمة OCR: {e}")
+            text = None
         except Exception as e:
-            st.error("حدث خطأ فادح أثناء تحليل الصورة.")
+            st.error(f"حدث خطأ غير متوقع: {e}")
             st.exception(e)
             text = None
 
-    # عرض النتائج النهائية
+    # 3. تحليل وعرض النتائج
     if text:
-        with st.expander("📄 عرض النص الخام المستخرج (للتدقيق)"):
+        with st.expander("📄 عرض النص الخام المستخرج"):
             st.text_area("النص:", text, height=200)
         
         final_results = analyze_text_robust(text)
