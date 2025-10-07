@@ -11,3 +11,5 @@ openai
 tensorflow
 scikit-learn
 pdf2image
+thefuzz
+python-Levenshtein
