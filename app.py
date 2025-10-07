@@ -370,7 +370,6 @@ def main():
         if st.session_state.get('analysis_results'):
             if st.button("🤖 اطلب تفسيرًا شاملاً بالذكاء الاصطناعي", type="primary"):
                 if not api_key_input:
-                    st.error("⚠️
                     st.error("⚠️ يرجى إدخال مفتاح OpenAI API في الشريط الجانبي أولاً.")
                 else:
                     with st.spinner("⏳ الذكاء الاصطناعي يكتب التقرير..."):
