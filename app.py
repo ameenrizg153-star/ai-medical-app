@@ -299,8 +299,7 @@ def plot_signal(signal, title):
     st.altair_chart(chart, use_container_width=True)
 
 def evaluate_symptoms(symptoms):
-    emergency_symptoms = ["ألم في الصدر", "صعوبة في التنفس", "فقدان الوعي", "
-"نزيف حاد", "ألم شديد في البطن"]
+    emergency_symptoms = ["ألم في الصدر", "صعوبة في التنفس", "فقدان الوعي", "نزيف حاد", "ألم شديد في البطن"]
     urgent_symptoms = ["حمى عالية", "صداع شديد", "تقيؤ مستمر", "ألم عند التبول"]
     
     is_emergency = any(symptom in symptoms for symptom in emergency_symptoms)
