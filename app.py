@@ -162,32 +162,35 @@ def preprocess_image_for_ocr(image):
 
 def analyze_text_with_fuzzy_matching(text, knowledge_base, confidence_threshold=85):
     """
-    تحليل النص باستخدام البحث الضبابي للتعامل مع الأخطاء الإملائية.
+    تحليل النص باستخدام منطق البحث الضبابي السياقي (النسخة 7.0).
     """
     if not text: return []
     
     results = []
     processed_keys = set()
-    
+    text_lower = text.lower()
+
+    # 1. إنشاء قائمة بحث شاملة من قاعدة المعرفة
     choices = []
     for key, details in knowledge_base.items():
+        # إضافة الاسم الرسمي (مفتاح القاموس) مع استبدال الشرطة السفلية بمسافة
         choices.append((key.replace('_', ' '), key))
+        # إضافة الأسماء المستعارة
         for alias in details.get("aliases", []):
             if alias: choices.append((alias, key))
 
-    text_lines = text.lower().split('\n')
+    # 2. استخراج كل الكلمات التي قد تكون أسماء فحوصات من النص
+    # هذا النمط يجد الكلمات التي تحتوي على 3 أحرف أو أكثر
+    words_in_text = re.findall(r'\b[a-zA-Z]{3,}\b', text_lower)
     
-    for line in text_lines:
-        # محاولة استخراج الكلمات والأرقام من نفس السطر
-        words_in_line = re.findall(r'[a-zA-Z][a-zA-Z\.\s-]*', line)
-        numbers_in_line = re.findall(r'(\d+\.?\d*)', line)
+    # 3. استخراج كل الأرقام ومواقعها في النص
+    found_numbers = [(m.group(1), m.start()) for m in re.finditer(r'(\d+\.?\d*)', text_lower)]
 
-        if not words_in_line or not numbers_in_line:
-            continue
-
-        # البحث عن أفضل تطابق لاسم الفحص في السطر
+    # 4. البحث عن تطابقات لأسماء الفحوصات في النص
+    for word in set(words_in_text): # استخدام set لتجنب تكرار البحث لنفس الكلمة
+        # البحث عن أفضل تطابق لهذه الكلمة في قاعدة المعرفة
         best_match = process.extractOne(
-            words_in_line[0], 
+            word, 
             [choice[0] for choice in choices], 
             scorer=fuzz.token_set_ratio, 
             score_cutoff=confidence_threshold
@@ -200,25 +203,41 @@ def analyze_text_with_fuzzy_matching(text, knowledge_base, confidence_threshold=
 
             if not original_key or original_key in processed_keys:
                 continue
-            
-            # أخذ أول رقم في السطر كقيمة للفحص
-            best_candidate_val = numbers_in_line[0]
-            try:
-                value = float(best_candidate_val)
-                details = knowledge_base[original_key]
-                low, high = details["range"]
-                status = "طبيعي"
-                if value < low: status = "منخفض"
-                elif value > high: status = "مرتفع"
+
+            # 5. البحث عن موقع الفحص الذي تم العثور عليه في النص
+            # للتعامل مع الكلمات المتشابهة، نبحث عن كل تكراراتها
+            for match_obj in re.finditer(rf'\b{re.escape(word)}\b', text_lower):
+                match_pos = match_obj.start()
+
+                # 6. ربط الفحص بأقرب قيمة رقمية تأتي بعده
+                best_candidate_val = None
+                min_distance = float('inf')
+                for num_val, num_pos in found_numbers:
+                    distance = num_pos - match_pos
+                    if 0 < distance < 80: # نطاق بحث مرن (80 حرفًا بعد اسم الفحص)
+                        if distance < min_distance:
+                            min_distance = distance
+                            best_candidate_val = num_val
                 
-                results.append({
-                    "name": details['name_ar'], "value": value, "status": status,
-                    "recommendation_low": details.get("recommendation_low"),
-                    "recommendation_high": details.get("recommendation_high"),
-                })
-                processed_keys.add(original_key)
-            except (ValueError, KeyError):
-                continue
+                if best_candidate_val:
+                    try:
+                        value = float(best_candidate_val)
+                        details = knowledge_base[original_key]
+                        low, high = details["range"]
+                        status = "طبيعي"
+                        if value < low: status = "منخفض"
+                        elif value > high: status = "مرتفع"
+                        
+                        results.append({
+                            "name": details['name_ar'], "value": value, "status": status,
+                            "recommendation_low": details.get("recommendation_low"),
+                            "recommendation_high": details.get("recommendation_high"),
+                        })
+                        processed_keys.add(original_key)
+                        break # نكتفي بأول قيمة نجدها لهذا الفحص وننتقل للفحص التالي
+                    except (ValueError, KeyError):
+                        continue
+            
     return results
 
 def display_results(results):
@@ -230,7 +249,10 @@ def display_results(results):
     st.session_state['analysis_results'] = results
     st.subheader("📊 النتائج المستخرجة")
     
-    for r in results:
+    # فرز النتائج أبجديًا حسب الاسم العربي لضمان العرض المنظم
+    sorted_results = sorted(results, key=lambda x: x['name'])
+
+    for r in sorted_results:
         status_color = "green" if r['status'] == 'طبيعي' else "orange" if r['status'] == 'منخفض' else "red"
         st.markdown(f"**{r['name']}**: {r['value']}  <span style='color:{status_color}; font-weight:bold;'>({r['status']})</span>", unsafe_allow_html=True)
         
@@ -277,7 +299,8 @@ def plot_signal(signal, title):
     st.altair_chart(chart, use_container_width=True)
 
 def evaluate_symptoms(symptoms):
-    emergency_symptoms = ["ألم في الصدر", "صعوبة في التنفس", "فقدان الوعي", "نزيف حاد", "ألم شديد في البطن"]
+    emergency_symptoms = ["ألم في الصدر", "صعوبة في التنفس", "فقدان الوعي", "
+"نزيف حاد", "ألم شديد في البطن"]
     urgent_symptoms = ["حمى عالية", "صداع شديد", "تقيؤ مستمر", "ألم عند التبول"]
     
     is_emergency = any(symptom in symptoms for symptom in emergency_symptoms)
@@ -296,7 +319,7 @@ def main():
     st.sidebar.header("🔧 اختر الأداة المطلوبة")
     mode = st.sidebar.radio("الأدوات المتاحة:", ("🔬 تحليل التقارير الطبية (OCR)", "🩺 مدقق الأعراض الذكي", "💓 تحليل تخطيط القلب (ECG)", "🩹 تقييم الأعراض والنصائح"))
     st.sidebar.markdown("---")
-    api_key_input = st.sidebar.text_input("🔑 أدخل مفتاح OpenAI API (اختياري)", type="password")
+    api_key_input = st.sidebar.text_input("🔑 أدخل مفتاح OpenAI API (اختياري)", type="password", help="مطلوب لميزة 'تفسير الذكاء الاصطناعي'")
     st.sidebar.markdown("---")
     st.sidebar.info("💡 **ملاحظة:** هذا التطبيق للأغراض التعليمية فقط ولا يغني عن استشارة الطبيب المختص.")
 
@@ -316,9 +339,11 @@ def main():
                 st.info("📄 تم رفع ملف PDF. جاري تحويل الصفحات إلى صور...")
                 with st.spinner("⏳...تحويل PDF..."):
                     try:
+                        # استخدام poppler_path إذا لزم الأمر على Windows
+                        # images_to_process = convert_from_bytes(uploaded_file.getvalue(), poppler_path=r"C:\path\to\poppler\bin")
                         images_to_process = convert_from_bytes(uploaded_file.getvalue())
                     except Exception as e:
-                        st.error(f"فشل تحويل ملف الـ PDF. تأكد من تثبيت Poppler. الخطأ: {e}")
+                        st.error(f"فشل تحويل ملف الـ PDF. تأكد من تثبيت Poppler وإضافته إلى مسار النظام. الخطأ: {e}")
             else:
                 images_to_process.append(Image.open(io.BytesIO(uploaded_file.getvalue())))
 
