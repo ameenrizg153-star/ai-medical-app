@@ -1,9 +1,0 @@
-streamlit
-easyocr
-numpy==1.24.4
-Pillow
-torch
-torchvision
-opencv-python-headless
-streamlit-js-eval
-requests
