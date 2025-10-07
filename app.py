@@ -176,12 +176,16 @@ def analyze_text_with_fuzzy_matching(text, knowledge_base, confidence_threshold=
             if alias: choices.append((alias, key))
 
     text_lines = text.lower().split('\n')
-    found_numbers = [(m.group(1), m.start()) for m in re.finditer(r'(\d+\.?\d*)', text.lower())]
-
+    
     for line in text_lines:
-        words_in_line = re.findall(r'\b[a-zA-Z][a-zA-Z\.\s-]{2,}\b', line)
-        if not words_in_line: continue
+        # محاولة استخراج الكلمات والأرقام من نفس السطر
+        words_in_line = re.findall(r'[a-zA-Z][a-zA-Z\.\s-]*', line)
+        numbers_in_line = re.findall(r'(\d+\.?\d*)', line)
 
+        if not words_in_line or not numbers_in_line:
+            continue
+
+        # البحث عن أفضل تطابق لاسم الفحص في السطر
         best_match = process.extractOne(
             words_in_line[0], 
             [choice[0] for choice in choices], 
@@ -190,30 +194,31 @@ def analyze_text_with_fuzzy_matching(text, knowledge_base, confidence_threshold=
         )
 
         if best_match:
-            match_text, score, index = best_match[0], best_match[1], choices.index((best_match[0], choices[[c[0] for c in choices].index(best_match[0])][1]))
-            original_key = choices[index][1]
-            
-            if original_key in processed_keys: continue
+            match_text = best_match[0]
+            # العثور على المفتاح الأصلي للفحص المطابق
+            original_key = next((c[1] for c in choices if c[0] == match_text), None)
 
-            line_numbers = re.findall(r'(\d+\.?\d*)', line)
-            if line_numbers:
-                best_candidate_val = line_numbers[0]
-                try:
-                    value = float(best_candidate_val)
-                    details = knowledge_base[original_key]
-                    low, high = details["range"]
-                    status = "طبيعي"
-                    if value < low: status = "منخفض"
-                    elif value > high: status = "مرتفع"
-                    
-                    results.append({
-                        "name": details['name_ar'], "value": value, "status": status,
-                        "recommendation_low": details.get("recommendation_low"),
-                        "recommendation_high": details.get("recommendation_high"),
-                    })
-                    processed_keys.add(original_key)
-                except (ValueError, KeyError):
-                    continue
+            if not original_key or original_key in processed_keys:
+                continue
+            
+            # أخذ أول رقم في السطر كقيمة للفحص
+            best_candidate_val = numbers_in_line[0]
+            try:
+                value = float(best_candidate_val)
+                details = knowledge_base[original_key]
+                low, high = details["range"]
+                status = "طبيعي"
+                if value < low: status = "منخفض"
+                elif value > high: status = "مرتفع"
+                
+                results.append({
+                    "name": details['name_ar'], "value": value, "status": status,
+                    "recommendation_low": details.get("recommendation_low"),
+                    "recommendation_high": details.get("recommendation_high"),
+                })
+                processed_keys.add(original_key)
+            except (ValueError, KeyError):
+                continue
     return results
 
 def display_results(results):
@@ -334,3 +339,131 @@ def main():
                                 buf = io.BytesIO()
                                 processed_image.convert("RGB").save(buf, format='PNG')
                                 text_from_page = "\n".join(reader.readtext(buf.getvalue(), detail=0, paragraph=True))
+                        except Exception:
+                            pass
+                
+                    if not text_from_page.strip():
+                        with st.spinner(f"⏳ المحرك السريع (Tesseract) يحاول تحليل صفحة {i+1}..."):
+                            try:
+                                text_from_page = pytesseract.image_to_string(processed_image, lang='eng+ara')
+                            except Exception:
+                                pass
+                    
+                    if text_from_page.strip():
+                        st.success(f"✅ تم استخراج النص من صفحة {i+1}")
+                        all_text += text_from_page + "\n\n"
+                    else:
+                        st.warning(f"⚠️ لم يتم العثور على نص واضح في صفحة {i+1}.")
+
+                if all_text.strip():
+                    st.markdown("---")
+                    st.subheader("📜 النص الكامل المستخرج من جميع الصفحات")
+                    st.text_area("النص:", all_text, height=300)
+                    
+                    with st.spinner("🧠 العقل الذكي يحلل النص باستخدام البحث الضبابي..."):
+                        final_results = analyze_text_with_fuzzy_matching(all_text, KNOWLEDGE_BASE)
+                    
+                    display_results(final_results)
+                else:
+                    st.error("❌ فشلت كل المحاولات في قراءة أي نص من الملف المرفوع.")
+
+        if st.session_state.get('analysis_results'):
+            if st.button("🤖 اطلب تفسيرًا شاملاً بالذكاء الاصطناعي", type="primary"):
+                if not api_key_input:
+                    st.error("⚠️
+                    st.error("⚠️ يرجى إدخال مفتاح OpenAI API في الشريط الجانبي أولاً.")
+                else:
+                    with st.spinner("⏳ الذكاء الاصطناعي يكتب التقرير..."):
+                        interpretation = get_ai_interpretation(api_key_input, st.session_state['analysis_results'])
+                        st.subheader("🧠 تفسير الذكاء الاصطناعي للنتائج")
+                        st.markdown(interpretation)
+
+    elif mode == "🩺 مدقق الأعراض الذكي":
+        st.header("🩺 مدقق الأعراض (نموذج مدرب محليًا)")
+        st.markdown("حدد الأعراض التي تعاني منها وسيقوم النموذج بإعطاء تشخيص أولي.")
+        
+        symptom_model, symptoms_list = load_symptom_checker()
+        
+        if symptom_model is None or symptoms_list is None:
+            st.error("❌ خطأ: لم يتم العثور على ملفات مدقق الأعراض (`symptom_checker_model.joblib` أو `Training.csv`).")
+        else:
+            selected_symptoms = st.multiselect("حدد الأعراض:", options=symptoms_list, help="اختر عرض أو أكثر من القائمة")
+            
+            if st.button("🔬 تشخيص الأعراض", type="primary"):
+                if not selected_symptoms:
+                    st.warning("⚠️ يرجى تحديد عرض واحد على الأقل.")
+                else:
+                    input_vector = [1 if symptom in selected_symptoms else 0 for symptom in symptoms_list]
+                    input_df = pd.DataFrame([input_vector], columns=symptoms_list)
+                    
+                    with st.spinner("⏳ النموذج المحلي يحلل الأعراض..."):
+                        prediction = symptom_model.predict(input_df)
+                    
+                    st.success(f"✅ التشخيص الأولي المحتمل هو: **{prediction[0]}**")
+                    st.warning("⚠️ هذا التشخيص هو تنبؤ أولي ولا يغني عن استشارة الطبيب.")
+
+    elif mode == "💓 تحليل تخطيط القلب (ECG)":
+        st.header("💓 محلل إشارات تخطيط القلب (ECG)")
+        st.markdown("اختر إشارة ECG تجريبية لتحليلها بواسطة شبكة عصبونية مدربة.")
+        
+        ecg_model, ecg_signals = load_ecg_analyzer()
+        
+        if ecg_model is None or ecg_signals is None:
+            st.error("❌ خطأ: لم يتم العثور على ملفات محلل ECG (`ecg_classifier_model.h5` أو `sample_ecg_signals.npy`).")
+        else:
+            signal_type = st.selectbox("اختر إشارة ECG لتجربتها:", ("نبضة طبيعية", "نبضة غير طبيعية"))
+            selected_signal = ecg_signals['normal'] if signal_type == "نبضة طبيعية" else ecg_signals['abnormal']
+            
+            st.subheader("📈 الإشارة المختارة")
+            plot_signal(selected_signal, f"إشارة: {signal_type}")
+            
+            if st.button("🧠 تحليل الإشارة", type="primary"):
+                with st.spinner("⏳ الشبكة العصبونية تحلل الإشارة..."):
+                    signal_for_prediction = np.expand_dims(np.expand_dims(selected_signal, axis=0), axis=-1)
+                    prediction_value = ecg_model.predict(signal_for_prediction)[0][0]
+                    
+                    result_class = "نبضة طبيعية" if prediction_value < 0.5 else "نبضة غير طبيعية"
+                    confidence = 1 - prediction_value if prediction_value < 0.5 else prediction_value
+
+                if result_class == "نبضة طبيعية":
+                    st.success(f"**التشخيص:** {result_class}")
+                else:
+                    st.error(f"**التشخيص:** {result_class}")
+                
+                st.metric(label="درجة الثقة", value=f"{confidence:.2%}")
+                st.warning("⚠️ هذا التحليل هو مثال توضيحي ولا يغني عن تشخيص طبيب قلب مختص.")
+
+    elif mode == "🩹 تقييم الأعراض والنصائح":
+        st.header("🩹 تقييم الأعراض والنصائح الأولية")
+        st.markdown("أدخل الأعراض التي تعاني منها واحصل على تقييم أولي ونصائح.")
+        
+        common_symptoms = [
+            "حمى", "صداع", "سعال", "ألم في الصدر", "صعوبة في التنفس",
+            "ألم في البطن", "غثيان", "تقيؤ", "إسهال", "إمساك",
+            "ألم في المفاصل", "ألم في العضلات", "تعب وإرهاق", "دوخة",
+            "ألم عند التبول", "نزيف حاد", "طفح جلدي", "حكة", "فقدان الشهية", "فقدان الوعي"
+        ]
+        
+        selected_symptoms = st.multiselect("حدد الأعراض التي تعاني منها:", options=common_symptoms)
+        additional_symptoms = st.text_area("أعراض إضافية (اختياري):", placeholder="اكتب أي أعراض أخرى تعاني منها...")
+        
+        if st.button("📊 تقييم الأعراض", type="primary"):
+            if not selected_symptoms and not additional_symptoms:
+                st.warning("⚠️ يرجى تحديد عرض واحد على الأقل.")
+            else:
+                all_symptoms = selected_symptoms + ([additional_symptoms] if additional_symptoms else [])
+                severity, advice, color = evaluate_symptoms(all_symptoms)
+                
+                st.markdown(f"### نتيجة التقييم: <span style='color:{color}; font-weight:bold;'>{severity}</span>", unsafe_allow_html=True)
+                st.markdown(f"**النصيحة:** {advice}")
+                
+                st.markdown("---")
+                st.subheader("💡 نصائح عامة:")
+                st.markdown("- **الراحة:** احصل على قسط كافٍ من الراحة والنوم.\n- **الترطيب:** اشرب كميات كافية من الماء.\n- **المراقبة:** راقب الأعراض وسجل أي تغييرات.")
+                st.warning("⚠️ **تحذير:** هذا التقييم هو للإرشاد فقط ولا يغني عن استشارة الطبيب المختص.")
+
+# ==============================================================================
+# --- نقطة انطلاق التطبيق ---
+# ==============================================================================
+if __name__ == "__main__":
+    main()
