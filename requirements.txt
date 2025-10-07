@@ -1,0 +1,13 @@
+streamlit
+pandas
+numpy==1.24.4
+opencv-python-headless
+Pillow
+scikit-learn
+joblib
+easyocr
+torch
+torchvision
+openai
+tensorflow
+altair
