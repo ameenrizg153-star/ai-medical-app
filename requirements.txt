@@ -10,3 +10,4 @@ altair
 openai
 tensorflow
 scikit-learn
+pdf2image
