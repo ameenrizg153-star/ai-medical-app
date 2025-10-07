@@ -1,0 +1,21 @@
+symptom,fever,cough,fatigue,headache,chest_pain,shortness_of_breath,nausea,vomiting,diarrhea,abdominal_pain,joint_pain,muscle_pain,dizziness,skin_rash,diagnosis
+1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,Flu
+2,1,0,1,1,0,0,0,0,0,0,0,1,0,0,Common Cold
+3,0,1,0,0,1,1,0,0,0,0,0,0,0,0,Bronchitis
+4,0,0,1,1,0,0,0,0,0,0,0,0,1,0,Migraine
+5,1,0,1,0,0,0,1,1,1,1,0,0,0,0,Gastroenteritis
+6,0,0,1,0,1,1,0,0,0,0,0,0,1,0,Heart Disease
+7,1,0,0,1,0,0,0,0,0,0,1,1,0,0,Arthritis
+8,0,0,1,0,0,0,0,0,0,1,0,0,0,0,Appendicitis
+9,1,1,1,1,0,0,0,0,0,0,0,0,0,0,Pneumonia
+10,0,0,0,0,0,0,0,0,0,0,0,0,0,1,Allergic Reaction
+11,1,0,1,1,0,0,1,0,0,0,0,1,0,0,Dengue Fever
+12,0,1,1,0,1,0,0,0,0,0,0,0,0,0,Asthma
+13,1,1,1,1,0,1,0,0,0,0,0,0,1,0,COVID-19
+14,0,0,1,1,0,0,0,0,0,0,0,0,1,0,Tension Headache
+15,1,0,1,0,0,0,1,1,0,1,0,0,0,0,Food Poisoning
+16,0,0,0,1,0,0,0,0,0,0,0,0,1,0,Vertigo
+17,1,1,1,0,0,0,0,0,0,0,1,1,0,0,Influenza
+18,0,0,1,0,0,0,0,0,1,1,0,0,0,0,Irritable Bowel Syndrome
+19,1,0,0,1,0,0,0,0,0,0,0,0,0,1,Measles
+20,0,1,0,0,1,1,0,0,0,0,0,0,0,0,Chronic Obstructive Pulmonary Disease
