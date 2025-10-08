@@ -309,3 +309,173 @@ def main():
     mode = st.sidebar.radio("الأدوات المتاحة:", ("🔬 تحليل التقارير الطبية (OCR)", "🩺 مدقق الأعراض الذكي", "💓 تحليل تخطيط القلب (ECG)", "🩹 تقييم الأعراض والنصائح"))
     st.sidebar.markdown("---")
     api_key_input = st
+    api_key_input = st.sidebar.text_input("🔑 أدخل مفتاح OpenAI API (اختياري)", type="password", help="مطلوب لميزة 'تفسير الذكاء الاصطناعي'")
+    st.sidebar.markdown("---")
+    st.sidebar.info("💡 **ملاحظة:** هذا التطبيق للأغراض التعليمية فقط ولا يغني عن استشارة الطبيب المختص.")
+
+    if mode == "🔬 تحليل التقارير الطبية (OCR)":
+        st.header("🔬 تحليل تقرير طبي (صورة أو PDF)")
+        st.markdown("ارفع ملف صورة أو PDF لتقرير طبي وسيتم استخراج البيانات وتحليلها تلقائيًا.")
+        
+        uploaded_file = st.file_uploader("📂 ارفع الملف هنا", type=["png", "jpg", "jpeg", "pdf"])
+        
+        if 'analysis_results' not in st.session_state:
+            st.session_state['analysis_results'] = None
+
+        if uploaded_file:
+            images_to_process = []
+            
+            if uploaded_file.type == "application/pdf":
+                st.info("📄 تم رفع ملف PDF. جاري تحويل الصفحات إلى صور...")
+                with st.spinner("⏳...تحويل PDF..."):
+                    try:
+                        images_to_process = convert_from_bytes(uploaded_file.getvalue())
+                    except Exception as e:
+                        st.error(f"فشل تحويل ملف الـ PDF. تأكد من تثبيت Poppler. الخطأ: {e}")
+            else:
+                images_to_process.append(Image.open(io.BytesIO(uploaded_file.getvalue())))
+
+            if images_to_process:
+                all_text = ""
+                for i, image in enumerate(images_to_process):
+                    st.markdown(f"---")
+                    st.subheader(f"📄 تحليل الصفحة رقم {i+1}")
+                    
+                    with st.spinner(f"⏳ جاري تحسين الصورة (صفحة {i+1})..."):
+                        processed_image = preprocess_image_for_ocr(image)
+                    
+                    text_from_page = ""
+                    with st.spinner(f"⏳ المحرك المتقدم (EasyOCR) يحلل صفحة {i+1}. يرجى الانتظار..."):
+                        try:
+                            reader = load_ocr_models()
+                            if reader:
+                                buf = io.BytesIO()
+                                processed_image.convert("RGB").save(buf, format='PNG')
+                                text_from_page = "\n".join(reader.readtext(buf.getvalue(), detail=0, paragraph=True))
+                        except Exception:
+                            pass
+                
+                    if not text_from_page.strip():
+                        with st.spinner(f"⏳ المحرك السريع (Tesseract) يحاول تحليل صفحة {i+1}..."):
+                            try:
+                                text_from_page = pytesseract.image_to_string(processed_image, lang='eng+ara')
+                            except Exception:
+                                pass
+                    
+                    if text_from_page.strip():
+                        st.success(f"✅ تم استخراج النص من صفحة {i+1}")
+                        all_text += text_from_page + "\n\n"
+                    else:
+                        st.warning(f"⚠️ لم يتم العثور على نص واضح في صفحة {i+1}.")
+
+                if all_text.strip():
+                    st.markdown("---")
+                    st.subheader("📜 النص الكامل المستخرج من جميع الصفحات")
+                    st.text_area("النص:", all_text, height=300)
+                    
+                    with st.spinner("🧠 العقل الذكي يحلل النص باستخدام البحث الضبابي..."):
+                        final_results = analyze_text_with_fuzzy_matching(all_text, KNOWLEDGE_BASE)
+                    
+                    display_results(final_results)
+                else:
+                    st.error("❌ فشلت كل المحاولات في قراءة أي نص من الملف المرفوع.")
+
+        if st.session_state.get('analysis_results'):
+            if st.button("🤖 اطلب تفسيرًا شاملاً بالذكاء الاصطناعي", type="primary"):
+                if not api_key_input:
+                    st.error("⚠️ يرجى إدخال مفتاح OpenAI API في الشريط الجانبي أولاً.")
+                else:
+                    with st.spinner("⏳ الذكاء الاصطناعي يكتب التقرير..."):
+                        interpretation = get_ai_interpretation(api_key_input, st.session_state['analysis_results'])
+                        st.subheader("🧠 تفسير الذكاء الاصطناعي للنتائج")
+                        st.markdown(interpretation)
+
+    elif mode == "🩺 مدقق الأعراض الذكي":
+        st.header("🩺 مدقق الأعراض (نموذج مدرب محليًا)")
+        st.markdown("حدد الأعراض التي تعاني منها وسيقوم النموذج بإعطاء تشخيص أولي.")
+        
+        symptom_model, symptoms_list = load_symptom_checker()
+        
+        if symptom_model is None or symptoms_list is None:
+            st.error("❌ خطأ: لم يتم العثور على ملفات مدقق الأعراض (`symptom_checker_model.joblib` أو `Training.csv`).")
+        else:
+            selected_symptoms = st.multiselect("حدد الأعراض:", options=symptoms_list, help="اختر عرض أو أكثر من القائمة")
+            
+            if st.button("🔬 تشخيص الأعراض", type="primary"):
+                if not selected_symptoms:
+                    st.warning("⚠️ يرجى تحديد عرض واحد على الأقل.")
+                else:
+                    input_vector = [1 if symptom in selected_symptoms else 0 for symptom in symptoms_list]
+                    input_df = pd.DataFrame([input_vector], columns=symptoms_list)
+                    
+                    with st.spinner("⏳ النموذج المحلي يحلل الأعراض..."):
+                        prediction = symptom_model.predict(input_df)
+                    
+                    st.success(f"✅ التشخيص الأولي المحتمل هو: **{prediction[0]}**")
+                    st.warning("⚠️ هذا التشخيص هو تنبؤ أولي ولا يغني عن استشارة الطبيب.")
+
+    elif mode == "💓 تحليل تخطيط القلب (ECG)":
+        st.header("💓 محلل إشارات تخطيط القلب (ECG)")
+        st.markdown("اختر إشارة ECG تجريبية لتحليلها بواسطة شبكة عصبونية مدربة.")
+        
+        ecg_model, ecg_signals = load_ecg_analyzer()
+        
+        if ecg_model is None or ecg_signals is None:
+            st.error("❌ خطأ: لم يتم العثور على ملفات محلل ECG (`ecg_classifier_model.h5` أو `sample_ecg_signals.npy`).")
+        else:
+            signal_type = st.selectbox("اختر إشارة ECG لتجربتها:", ("نبضة طبيعية", "نبضة غير طبيعية"))
+            selected_signal = ecg_signals['normal'] if signal_type == "نبضة طبيعية" else ecg_signals['abnormal']
+            
+            st.subheader("📈 الإشارة المختارة")
+            plot_signal(selected_signal, f"إشارة: {signal_type}")
+            
+            if st.button("🧠 تحليل الإشارة", type="primary"):
+                with st.spinner("⏳ الشبكة العصبونية تحلل الإشارة..."):
+                    signal_for_prediction = np.expand_dims(np.expand_dims(selected_signal, axis=0), axis=-1)
+                    prediction_value = ecg_model.predict(signal_for_prediction)[0][0]
+                    
+                    result_class = "نبضة طبيعية" if prediction_value < 0.5 else "نبضة غير طبيعية"
+                    confidence = 1 - prediction_value if prediction_value < 0.5 else prediction_value
+
+                if result_class == "نبضة طبيعية":
+                    st.success(f"**التشخيص:** {result_class}")
+                else:
+                    st.error(f"**التشخيص:** {result_class}")
+                
+                st.metric(label="درجة الثقة", value=f"{confidence:.2%}")
+                st.warning("⚠️ هذا التحليل هو مثال توضيحي ولا يغني عن تشخيص طبيب قلب مختص.")
+
+    elif mode == "🩹 تقييم الأعراض والنصائح":
+        st.header("🩹 تقييم الأعراض والنصائح الأولية")
+        st.markdown("أدخل الأعراض التي تعاني منها واحصل على تقييم أولي ونصائح.")
+        
+        common_symptoms = [
+            "حمى", "صداع", "سعال", "ألم في الصدر", "صعوبة في التنفس",
+            "ألم في البطن", "غثيان", "تقيؤ", "إسهال", "إمساك",
+            "ألم في المفاصل", "ألم في العضلات", "تعب وإرهاق", "دوخة",
+            "ألم عند التبول", "نزيف حاد", "طفح جلدي", "حكة", "فقدان الشهية", "فقدان الوعي"
+        ]
+        
+        selected_symptoms = st.multiselect("حدد الأعراض التي تعاني منها:", options=common_symptoms)
+        additional_symptoms = st.text_area("أعراض إضافية (اختياري):", placeholder="اكتب أي أعراض أخرى تعاني منها...")
+        
+        if st.button("📊 تقييم الأعراض", type="primary"):
+            if not selected_symptoms and not additional_symptoms:
+                st.warning("⚠️ يرجى تحديد عرض واحد على الأقل.")
+            else:
+                all_symptoms = selected_symptoms + ([additional_symptoms] if additional_symptoms else [])
+                severity, advice, color = evaluate_symptoms(all_symptoms)
+                
+                st.markdown(f"### نتيجة التقييم: <span style='color:{color}; font-weight:bold;'>{severity}</span>", unsafe_allow_html=True)
+                st.markdown(f"**النصيحة:** {advice}")
+                
+                st.markdown("---")
+                st.subheader("💡 نصائح عامة:")
+                st.markdown("- **الراحة:** احصل على قسط كافٍ من الراحة والنوم.\n- **الترطيب:** اشرب كميات كافية من الماء.\n- **المراقبة:** راقب الأعراض وسجل أي تغييرات.")
+                st.warning("⚠️ **تحذير:** هذا التقييم هو للإرشاد فقط ولا يغني عن استشارة الطبيب المختص.")
+
+# ==============================================================================
+# --- نقطة انطلاق التطبيق ---
+# ==============================================================================
+if __name__ == "__main__":
+    main()
