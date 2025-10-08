@@ -162,14 +162,13 @@ def preprocess_image_for_ocr(image):
 
 def analyze_text_with_fuzzy_matching(text, knowledge_base, confidence_threshold=85):
     """
-    تحليل النص باستخدام منطق البحث الضبابي السياقي (النسخة 7.0).
+    تحليل النص باستخدام منطق البحث الضبابي السياقي والمبسط (النسخة 8.0).
     """
     if not text: return []
     
     results = []
     processed_keys = set()
-    text_lower = text.lower()
-
+    
     # 1. إنشاء قائمة بحث شاملة من قاعدة المعرفة
     choices = []
     for key, details in knowledge_base.items():
@@ -179,18 +178,25 @@ def analyze_text_with_fuzzy_matching(text, knowledge_base, confidence_threshold=
         for alias in details.get("aliases", []):
             if alias: choices.append((alias, key))
 
-    # 2. استخراج كل الكلمات التي قد تكون أسماء فحوصات من النص
-    # هذا النمط يجد الكلمات التي تحتوي على 3 أحرف أو أكثر
-    words_in_text = re.findall(r'\b[a-zA-Z]{3,}\b', text_lower)
+    # 2. تقسيم النص إلى أسطر لتحليل كل سطر على حدة
+    text_lines = text.lower().split('\n')
     
-    # 3. استخراج كل الأرقام ومواقعها في النص
-    found_numbers = [(m.group(1), m.start()) for m in re.finditer(r'(\d+\.?\d*)', text_lower)]
+    for line in text_lines:
+        # 3. محاولة استخراج الكلمات والأرقام من نفس السطر
+        # استخراج كل الكلمات التي قد تكون اسم فحص
+        words_in_line = re.findall(r'[a-zA-Z][a-zA-Z\.\s-]*', line)
+        # استخراج كل الأرقام في السطر
+        numbers_in_line = re.findall(r'(\d+\.?\d*)', line)
 
-    # 4. البحث عن تطابقات لأسماء الفحوصات في النص
-    for word in set(words_in_text): # استخدام set لتجنب تكرار البحث لنفس الكلمة
-        # البحث عن أفضل تطابق لهذه الكلمة في قاعدة المعرفة
+        # إذا لم يحتوي السطر على كلمات وأرقام معًا، فتجاهله
+        if not words_in_line or not numbers_in_line:
+            continue
+
+        # 4. البحث عن أفضل تطابق لاسم الفحص في كلمات السطر
+        # نركز على الجزء الأول من السطر الذي غالبًا ما يحتوي على اسم الفحص
+        line_text_part = words_in_line[0]
         best_match = process.extractOne(
-            word, 
+            line_text_part, 
             [choice[0] for choice in choices], 
             scorer=fuzz.token_set_ratio, 
             score_cutoff=confidence_threshold
@@ -203,41 +209,26 @@ def analyze_text_with_fuzzy_matching(text, knowledge_base, confidence_threshold=
 
             if not original_key or original_key in processed_keys:
                 continue
-
-            # 5. البحث عن موقع الفحص الذي تم العثور عليه في النص
-            # للتعامل مع الكلمات المتشابهة، نبحث عن كل تكراراتها
-            for match_obj in re.finditer(rf'\b{re.escape(word)}\b', text_lower):
-                match_pos = match_obj.start()
-
-                # 6. ربط الفحص بأقرب قيمة رقمية تأتي بعده
-                best_candidate_val = None
-                min_distance = float('inf')
-                for num_val, num_pos in found_numbers:
-                    distance = num_pos - match_pos
-                    if 0 < distance < 80: # نطاق بحث مرن (80 حرفًا بعد اسم الفحص)
-                        if distance < min_distance:
-                            min_distance = distance
-                            best_candidate_val = num_val
-                
-                if best_candidate_val:
-                    try:
-                        value = float(best_candidate_val)
-                        details = knowledge_base[original_key]
-                        low, high = details["range"]
-                        status = "طبيعي"
-                        if value < low: status = "منخفض"
-                        elif value > high: status = "مرتفع"
-                        
-                        results.append({
-                            "name": details['name_ar'], "value": value, "status": status,
-                            "recommendation_low": details.get("recommendation_low"),
-                            "recommendation_high": details.get("recommendation_high"),
-                        })
-                        processed_keys.add(original_key)
-                        break # نكتفي بأول قيمة نجدها لهذا الفحص وننتقل للفحص التالي
-                    except (ValueError, KeyError):
-                        continue
             
+            # 5. أخذ أول رقم في السطر كقيمة للفحص
+            # هذا المنطق يفترض أن أول رقم يظهر في السطر هو النتيجة
+            value_str = numbers_in_line[0]
+            try:
+                value = float(value_str)
+                details = knowledge_base[original_key]
+                low, high = details["range"]
+                status = "طبيعي"
+                if value < low: status = "منخفض"
+                elif value > high: status = "مرتفع"
+                
+                results.append({
+                    "name": details['name_ar'], "value": value, "status": status,
+                    "recommendation_low": details.get("recommendation_low"),
+                    "recommendation_high": details.get("recommendation_high"),
+                })
+                processed_keys.add(original_key) # نمنع معالجة نفس الفحص مرة أخرى
+            except (ValueError, KeyError):
+                continue # ننتقل للسطر التالي إذا حدث خطأ
     return results
 
 def display_results(results):
@@ -249,7 +240,6 @@ def display_results(results):
     st.session_state['analysis_results'] = results
     st.subheader("📊 النتائج المستخرجة")
     
-    # فرز النتائج أبجديًا حسب الاسم العربي لضمان العرض المنظم
     sorted_results = sorted(results, key=lambda x: x['name'])
 
     for r in sorted_results:
@@ -318,175 +308,4 @@ def main():
     st.sidebar.header("🔧 اختر الأداة المطلوبة")
     mode = st.sidebar.radio("الأدوات المتاحة:", ("🔬 تحليل التقارير الطبية (OCR)", "🩺 مدقق الأعراض الذكي", "💓 تحليل تخطيط القلب (ECG)", "🩹 تقييم الأعراض والنصائح"))
     st.sidebar.markdown("---")
-    api_key_input = st.sidebar.text_input("🔑 أدخل مفتاح OpenAI API (اختياري)", type="password", help="مطلوب لميزة 'تفسير الذكاء الاصطناعي'")
-    st.sidebar.markdown("---")
-    st.sidebar.info("💡 **ملاحظة:** هذا التطبيق للأغراض التعليمية فقط ولا يغني عن استشارة الطبيب المختص.")
-
-    if mode == "🔬 تحليل التقارير الطبية (OCR)":
-        st.header("🔬 تحليل تقرير طبي (صورة أو PDF)")
-        st.markdown("ارفع ملف صورة أو PDF لتقرير طبي وسيتم استخراج البيانات وتحليلها تلقائيًا.")
-        
-        uploaded_file = st.file_uploader("📂 ارفع الملف هنا", type=["png", "jpg", "jpeg", "pdf"])
-        
-        if 'analysis_results' not in st.session_state:
-            st.session_state['analysis_results'] = None
-
-        if uploaded_file:
-            images_to_process = []
-            
-            if uploaded_file.type == "application/pdf":
-                st.info("📄 تم رفع ملف PDF. جاري تحويل الصفحات إلى صور...")
-                with st.spinner("⏳...تحويل PDF..."):
-                    try:
-                        # استخدام poppler_path إذا لزم الأمر على Windows
-                        # images_to_process = convert_from_bytes(uploaded_file.getvalue(), poppler_path=r"C:\path\to\poppler\bin")
-                        images_to_process = convert_from_bytes(uploaded_file.getvalue())
-                    except Exception as e:
-                        st.error(f"فشل تحويل ملف الـ PDF. تأكد من تثبيت Poppler وإضافته إلى مسار النظام. الخطأ: {e}")
-            else:
-                images_to_process.append(Image.open(io.BytesIO(uploaded_file.getvalue())))
-
-            if images_to_process:
-                all_text = ""
-                for i, image in enumerate(images_to_process):
-                    st.markdown(f"---")
-                    st.subheader(f"📄 تحليل الصفحة رقم {i+1}")
-                    
-                    with st.spinner(f"⏳ جاري تحسين الصورة (صفحة {i+1})..."):
-                        processed_image = preprocess_image_for_ocr(image)
-                    
-                    text_from_page = ""
-                    with st.spinner(f"⏳ المحرك المتقدم (EasyOCR) يحلل صفحة {i+1}. يرجى الانتظار..."):
-                        try:
-                            reader = load_ocr_models()
-                            if reader:
-                                buf = io.BytesIO()
-                                processed_image.convert("RGB").save(buf, format='PNG')
-                                text_from_page = "\n".join(reader.readtext(buf.getvalue(), detail=0, paragraph=True))
-                        except Exception:
-                            pass
-                
-                    if not text_from_page.strip():
-                        with st.spinner(f"⏳ المحرك السريع (Tesseract) يحاول تحليل صفحة {i+1}..."):
-                            try:
-                                text_from_page = pytesseract.image_to_string(processed_image, lang='eng+ara')
-                            except Exception:
-                                pass
-                    
-                    if text_from_page.strip():
-                        st.success(f"✅ تم استخراج النص من صفحة {i+1}")
-                        all_text += text_from_page + "\n\n"
-                    else:
-                        st.warning(f"⚠️ لم يتم العثور على نص واضح في صفحة {i+1}.")
-
-                if all_text.strip():
-                    st.markdown("---")
-                    st.subheader("📜 النص الكامل المستخرج من جميع الصفحات")
-                    st.text_area("النص:", all_text, height=300)
-                    
-                    with st.spinner("🧠 العقل الذكي يحلل النص باستخدام البحث الضبابي..."):
-                        final_results = analyze_text_with_fuzzy_matching(all_text, KNOWLEDGE_BASE)
-                    
-                    display_results(final_results)
-                else:
-                    st.error("❌ فشلت كل المحاولات في قراءة أي نص من الملف المرفوع.")
-
-        if st.session_state.get('analysis_results'):
-            if st.button("🤖 اطلب تفسيرًا شاملاً بالذكاء الاصطناعي", type="primary"):
-                if not api_key_input:
-                    st.error("⚠️ يرجى إدخال مفتاح OpenAI API في الشريط الجانبي أولاً.")
-                else:
-                    with st.spinner("⏳ الذكاء الاصطناعي يكتب التقرير..."):
-                        interpretation = get_ai_interpretation(api_key_input, st.session_state['analysis_results'])
-                        st.subheader("🧠 تفسير الذكاء الاصطناعي للنتائج")
-                        st.markdown(interpretation)
-
-    elif mode == "🩺 مدقق الأعراض الذكي":
-        st.header("🩺 مدقق الأعراض (نموذج مدرب محليًا)")
-        st.markdown("حدد الأعراض التي تعاني منها وسيقوم النموذج بإعطاء تشخيص أولي.")
-        
-        symptom_model, symptoms_list = load_symptom_checker()
-        
-        if symptom_model is None or symptoms_list is None:
-            st.error("❌ خطأ: لم يتم العثور على ملفات مدقق الأعراض (`symptom_checker_model.joblib` أو `Training.csv`).")
-        else:
-            selected_symptoms = st.multiselect("حدد الأعراض:", options=symptoms_list, help="اختر عرض أو أكثر من القائمة")
-            
-            if st.button("🔬 تشخيص الأعراض", type="primary"):
-                if not selected_symptoms:
-                    st.warning("⚠️ يرجى تحديد عرض واحد على الأقل.")
-                else:
-                    input_vector = [1 if symptom in selected_symptoms else 0 for symptom in symptoms_list]
-                    input_df = pd.DataFrame([input_vector], columns=symptoms_list)
-                    
-                    with st.spinner("⏳ النموذج المحلي يحلل الأعراض..."):
-                        prediction = symptom_model.predict(input_df)
-                    
-                    st.success(f"✅ التشخيص الأولي المحتمل هو: **{prediction[0]}**")
-                    st.warning("⚠️ هذا التشخيص هو تنبؤ أولي ولا يغني عن استشارة الطبيب.")
-
-    elif mode == "💓 تحليل تخطيط القلب (ECG)":
-        st.header("💓 محلل إشارات تخطيط القلب (ECG)")
-        st.markdown("اختر إشارة ECG تجريبية لتحليلها بواسطة شبكة عصبونية مدربة.")
-        
-        ecg_model, ecg_signals = load_ecg_analyzer()
-        
-        if ecg_model is None or ecg_signals is None:
-            st.error("❌ خطأ: لم يتم العثور على ملفات محلل ECG (`ecg_classifier_model.h5` أو `sample_ecg_signals.npy`).")
-        else:
-            signal_type = st.selectbox("اختر إشارة ECG لتجربتها:", ("نبضة طبيعية", "نبضة غير طبيعية"))
-            selected_signal = ecg_signals['normal'] if signal_type == "نبضة طبيعية" else ecg_signals['abnormal']
-            
-            st.subheader("📈 الإشارة المختارة")
-            plot_signal(selected_signal, f"إشارة: {signal_type}")
-            
-            if st.button("🧠 تحليل الإشارة", type="primary"):
-                with st.spinner("⏳ الشبكة العصبونية تحلل الإشارة..."):
-                    signal_for_prediction = np.expand_dims(np.expand_dims(selected_signal, axis=0), axis=-1)
-                    prediction_value = ecg_model.predict(signal_for_prediction)[0][0]
-                    
-                    result_class = "نبضة طبيعية" if prediction_value < 0.5 else "نبضة غير طبيعية"
-                    confidence = 1 - prediction_value if prediction_value < 0.5 else prediction_value
-
-                if result_class == "نبضة طبيعية":
-                    st.success(f"**التشخيص:** {result_class}")
-                else:
-                    st.error(f"**التشخيص:** {result_class}")
-                
-                st.metric(label="درجة الثقة", value=f"{confidence:.2%}")
-                st.warning("⚠️ هذا التحليل هو مثال توضيحي ولا يغني عن تشخيص طبيب قلب مختص.")
-
-    elif mode == "🩹 تقييم الأعراض والنصائح":
-        st.header("🩹 تقييم الأعراض والنصائح الأولية")
-        st.markdown("أدخل الأعراض التي تعاني منها واحصل على تقييم أولي ونصائح.")
-        
-        common_symptoms = [
-            "حمى", "صداع", "سعال", "ألم في الصدر", "صعوبة في التنفس",
-            "ألم في البطن", "غثيان", "تقيؤ", "إسهال", "إمساك",
-            "ألم في المفاصل", "ألم في العضلات", "تعب وإرهاق", "دوخة",
-            "ألم عند التبول", "نزيف حاد", "طفح جلدي", "حكة", "فقدان الشهية", "فقدان الوعي"
-        ]
-        
-        selected_symptoms = st.multiselect("حدد الأعراض التي تعاني منها:", options=common_symptoms)
-        additional_symptoms = st.text_area("أعراض إضافية (اختياري):", placeholder="اكتب أي أعراض أخرى تعاني منها...")
-        
-        if st.button("📊 تقييم الأعراض", type="primary"):
-            if not selected_symptoms and not additional_symptoms:
-                st.warning("⚠️ يرجى تحديد عرض واحد على الأقل.")
-            else:
-                all_symptoms = selected_symptoms + ([additional_symptoms] if additional_symptoms else [])
-                severity, advice, color = evaluate_symptoms(all_symptoms)
-                
-                st.markdown(f"### نتيجة التقييم: <span style='color:{color}; font-weight:bold;'>{severity}</span>", unsafe_allow_html=True)
-                st.markdown(f"**النصيحة:** {advice}")
-                
-                st.markdown("---")
-                st.subheader("💡 نصائح عامة:")
-                st.markdown("- **الراحة:** احصل على قسط كافٍ من الراحة والنوم.\n- **الترطيب:** اشرب كميات كافية من الماء.\n- **المراقبة:** راقب الأعراض وسجل أي تغييرات.")
-                st.warning("⚠️ **تحذير:** هذا التقييم هو للإرشاد فقط ولا يغني عن استشارة الطبيب المختص.")
-
-# ==============================================================================
-# --- نقطة انطلاق التطبيق ---
-# ==============================================================================
-if __name__ == "__main__":
-    main()
+    api_key_input = st
