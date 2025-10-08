@@ -1,5 +1,5 @@
 # ==============================================================================
-# --- المكتبات والاعتماديات ---
+# --- المكتبات والاعتماديات (النسخة 9.0 - وضع التشخيص) ---
 # ==============================================================================
 import streamlit as st
 import re
@@ -14,7 +14,7 @@ from PIL import Image, ImageEnhance
 import os
 import altair as alt
 from openai import OpenAI
-from tensorflow.keras.models import load_model
+# from tensorflow.keras.models import load_model # <-- تم تعطيل TensorFlow مؤقتًا
 from pdf2image import convert_from_bytes
 from thefuzz import process, fuzz
 
@@ -29,12 +29,18 @@ st.set_page_config(
 )
 
 # ==============================================================================
-# --- تحميل النماذج والبيانات (مع التخزين المؤقت للأداء) ---
+# --- تحميل النماذج والبيانات (مع رسائل تشخيصية) ---
 # ==============================================================================
 @st.cache_resource
 def load_ocr_models():
-    try: return easyocr.Reader(['en', 'ar'])
-    except Exception: return None
+    st.info("محاولة تحميل نماذج EasyOCR (الإنجليزية والعربية)... هذه العملية قد تستغرق وقتًا طويلاً جدًا عند التشغيل لأول مرة.")
+    try:
+        reader = easyocr.Reader(['en', 'ar'])
+        st.success("✅ تم تحميل نماذج EasyOCR بنجاح!")
+        return reader
+    except Exception as e:
+        st.error(f"❌ فشل تحميل EasyOCR. قد يكون السبب مشكلة في الاتصال بالإنترنت أو تعارض في المكتبات. الخطأ: {e}")
+        return None
 
 @st.cache_data
 def load_symptom_checker():
@@ -45,17 +51,15 @@ def load_symptom_checker():
         return s_model, s_list
     except FileNotFoundError: return None, None
 
-@st.cache_resource
-def load_ecg_analyzer():
-    try:
-        ecg_model = load_model("ecg_classifier_model.h5")
-        ecg_signals = np.load("sample_ecg_signals.npy", allow_pickle=True).item()
-        return ecg_model, ecg_signals
-    except FileNotFoundError: return None, None
+# @st.cache_resource # <-- تم تعطيل دالة ECG مؤقتًا
+# def load_ecg_analyzer():
+#     try:
+#         ecg_model = load_model("ecg_classifier_model.h5")
+#         ecg_signals = np.load("sample_ecg_signals.npy", allow_pickle=True).item()
+#         return ecg_model, ecg_signals
+#     except FileNotFoundError: return None, None
 
-# ==============================================================================
-# --- قاعدة المعرفة الشاملة والنهائية (96 فحصًا من عملك) ---
-# ==============================================================================
+# --- (قاعدة المعرفة ودوال التحليل الأخرى تبقى كما هي) ---
 KNOWLEDGE_BASE = {
     "wbc": {"name_ar": "كريات الدم البيضاء", "range": (4.0, 11.0), "aliases": ["w.b.c", "white blood cells"], "recommendation_low": "انخفاض قد يدل على ضعف المناعة.", "recommendation_high": "ارتفاع قد يدل على عدوى."},
     "rbc": {"name_ar": "كريات الدم الحمراء", "range": (4.1, 5.9), "aliases": ["r.b.c", "red blood cells"]},
@@ -148,12 +152,7 @@ KNOWLEDGE_BASE = {
     "rubella_igg": {"name_ar": "الأجسام المضادة للحصبة الألمانية", "range": (10, 999), "aliases": ["rubella"], "recommendation_low": "أقل من 10 يعني عدم وجود مناعة كافية."},
 }
 
-# ==============================================================================
-# --- الدوال المساعدة والتحليلية ---
-# ==============================================================================
-
 def preprocess_image_for_ocr(image):
-    """تحسين الصورة لزيادة دقة OCR."""
     img_cv = np.array(image.convert('RGB'))
     gray = cv2.cvtColor(img_cv, cv2.COLOR_RGB2GRAY)
     img_pil = Image.fromarray(gray)
@@ -161,39 +160,20 @@ def preprocess_image_for_ocr(image):
     return enhancer.enhance(1.5)
 
 def analyze_text_with_fuzzy_matching(text, knowledge_base, confidence_threshold=85):
-    """
-    تحليل النص باستخدام منطق البحث الضبابي السياقي والمبسط (النسخة 8.0).
-    """
     if not text: return []
-    
     results = []
     processed_keys = set()
-    
-    # 1. إنشاء قائمة بحث شاملة من قاعدة المعرفة
     choices = []
     for key, details in knowledge_base.items():
-        # إضافة الاسم الرسمي (مفتاح القاموس) مع استبدال الشرطة السفلية بمسافة
         choices.append((key.replace('_', ' '), key))
-        # إضافة الأسماء المستعارة
         for alias in details.get("aliases", []):
             if alias: choices.append((alias, key))
-
-    # 2. تقسيم النص إلى أسطر لتحليل كل سطر على حدة
     text_lines = text.lower().split('\n')
-    
     for line in text_lines:
-        # 3. محاولة استخراج الكلمات والأرقام من نفس السطر
-        # استخراج كل الكلمات التي قد تكون اسم فحص
         words_in_line = re.findall(r'[a-zA-Z][a-zA-Z\.\s-]*', line)
-        # استخراج كل الأرقام في السطر
         numbers_in_line = re.findall(r'(\d+\.?\d*)', line)
-
-        # إذا لم يحتوي السطر على كلمات وأرقام معًا، فتجاهله
         if not words_in_line or not numbers_in_line:
             continue
-
-        # 4. البحث عن أفضل تطابق لاسم الفحص في كلمات السطر
-        # نركز على الجزء الأول من السطر الذي غالبًا ما يحتوي على اسم الفحص
         line_text_part = words_in_line[0]
         best_match = process.extractOne(
             line_text_part, 
@@ -201,17 +181,11 @@ def analyze_text_with_fuzzy_matching(text, knowledge_base, confidence_threshold=
             scorer=fuzz.token_set_ratio, 
             score_cutoff=confidence_threshold
         )
-
         if best_match:
             match_text = best_match[0]
-            # العثور على المفتاح الأصلي للفحص المطابق
             original_key = next((c[1] for c in choices if c[0] == match_text), None)
-
             if not original_key or original_key in processed_keys:
                 continue
-            
-            # 5. أخذ أول رقم في السطر كقيمة للفحص
-            # هذا المنطق يفترض أن أول رقم يظهر في السطر هو النتيجة
             value_str = numbers_in_line[0]
             try:
                 value = float(value_str)
@@ -220,46 +194,37 @@ def analyze_text_with_fuzzy_matching(text, knowledge_base, confidence_threshold=
                 status = "طبيعي"
                 if value < low: status = "منخفض"
                 elif value > high: status = "مرتفع"
-                
                 results.append({
                     "name": details['name_ar'], "value": value, "status": status,
                     "recommendation_low": details.get("recommendation_low"),
                     "recommendation_high": details.get("recommendation_high"),
                 })
-                processed_keys.add(original_key) # نمنع معالجة نفس الفحص مرة أخرى
+                processed_keys.add(original_key)
             except (ValueError, KeyError):
-                continue # ننتقل للسطر التالي إذا حدث خطأ
+                continue
     return results
 
 def display_results(results):
-    """عرض نتائج التحليل بشكل منظم"""
     if not results:
         st.error("لم يتم التعرف على أي فحوصات مدعومة في التقرير. قد تكون جودة الصورة منخفضة أو أن الفحص غير موجود في قاعدة المعرفة.")
         return
-    
     st.session_state['analysis_results'] = results
     st.subheader("📊 النتائج المستخرجة")
-    
     sorted_results = sorted(results, key=lambda x: x['name'])
-
     for r in sorted_results:
         status_color = "green" if r['status'] == 'طبيعي' else "orange" if r['status'] == 'منخفض' else "red"
         st.markdown(f"**{r['name']}**: {r['value']}  <span style='color:{status_color}; font-weight:bold;'>({r['status']})</span>", unsafe_allow_html=True)
-        
         recommendation = None
         if r['status'] == 'منخفض': recommendation = r.get('recommendation_low')
         elif r['status'] == 'مرتفع': recommendation = r.get('recommendation_high')
-        
         if recommendation:
             st.info(f"💡 {recommendation}")
         st.markdown("---")
 
 def get_ai_interpretation(api_key, results):
-    """الحصول على تفسير شامل من OpenAI"""
     abnormal_results = [r for r in results if r['status'] != 'طبيعي']
     if not abnormal_results:
         return "✅ **تفسير الذكاء الاصطناعي:** كل الفحوصات التي تم تحليلها تقع ضمن النطاق الطبيعي. لا توجد مؤشرات تدعو للقلق بناءً على هذه النتائج."
-
     prompt_text = (
         "أنت مساعد طبي خبير. قم بتحليل نتائج الفحوصات التالية لمريض وقدم تفسيرًا شاملاً ومبسطًا باللغة العربية. "
         "اشرح ماذا يعني كل ارتفاع أو انخفاض، وما هي العلاقة المحتملة بين النتائج المختلفة إن وجدت. "
@@ -268,7 +233,6 @@ def get_ai_interpretation(api_key, results):
     )
     for r in abnormal_results:
         prompt_text += f"- **{r['name']}**: القيمة المسجلة هي {r['value']} وهي تعتبر **{r['status']}**.\n"
-    
     try:
         client = OpenAI(api_key=api_key)
         response = client.chat.completions.create(
@@ -291,22 +255,21 @@ def plot_signal(signal, title):
 def evaluate_symptoms(symptoms):
     emergency_symptoms = ["ألم في الصدر", "صعوبة في التنفس", "فقدان الوعي", "نزيف حاد", "ألم شديد في البطن"]
     urgent_symptoms = ["حمى عالية", "صداع شديد", "تقيؤ مستمر", "ألم عند التبول"]
-    
     is_emergency = any(symptom in symptoms for symptom in emergency_symptoms)
     is_urgent = any(symptom in symptoms for symptom in urgent_symptoms)
-    
     if is_emergency: return "حالة طارئة", "⚠️ يجب التوجه فورًا إلى الطوارئ أو الاتصال بالإسعاف!", "red"
     elif is_urgent: return "حالة عاجلة", "⚕️ يُنصح بزيارة الطبيب في أقرب وقت ممكن.", "orange"
     else: return "حالة عادية", "💡 يمكنك مراقبة الأعراض واستشارة الطبيب إذا استمرت.", "green"
 
 # ==============================================================================
-# --- الواجهة الرئيسية للتطبيق ---
+# --- الواجهة الرئيسية للتطبيق (مع تعطيل ECG مؤقتًا) ---
 # ==============================================================================
 def main():
     st.title("⚕️ المجموعة الطبية الذكية الشاملة")
     
     st.sidebar.header("🔧 اختر الأداة المطلوبة")
-    mode = st.sidebar.radio("الأدوات المتاحة:", ("🔬 تحليل التقارير الطبية (OCR)", "🩺 مدقق الأعراض الذكي", "💓 تحليل تخطيط القلب (ECG)", "🩹 تقييم الأعراض والنصائح"))
+    # تم إخفاء خيار ECG من الواجهة مؤقتًا
+    mode = st.sidebar.radio("الأدوات المتاحة:", ("🔬 تحليل التقارير الطبية (OCR)", "🩺 مدقق الأعراض الذكي", "🩹 تقييم الأعراض والنصائح"))
     st.sidebar.markdown("---")
     api_key_input = st.sidebar.text_input("🔑 أدخل مفتاح OpenAI API (اختياري)", type="password", help="مطلوب لميزة 'تفسير الذكاء الاصطناعي'")
     st.sidebar.markdown("---")
@@ -316,19 +279,24 @@ def main():
         st.header("🔬 تحليل تقرير طبي (صورة أو PDF)")
         st.markdown("ارفع ملف صورة أو PDF لتقرير طبي وسيتم استخراج البيانات وتحليلها تلقائيًا.")
         
+        # استدعاء دالة التحميل هنا لضمان ظهور رسائل التشخيص
+        reader = load_ocr_models()
+        
         uploaded_file = st.file_uploader("📂 ارفع الملف هنا", type=["png", "jpg", "jpeg", "pdf"])
         
         if 'analysis_results' not in st.session_state:
             st.session_state['analysis_results'] = None
 
         if uploaded_file:
+            if not reader:
+                st.error("لا يمكن المتابعة لأن محرك OCR (EasyOCR) فشل في التحميل.")
+                return
+
             images_to_process = []
-            
             if uploaded_file.type == "application/pdf":
                 st.info("📄 تم رفع ملف PDF. جاري تحويل الصفحات إلى صور...")
                 with st.spinner("⏳...تحويل PDF..."):
-                    try:
-                        images_to_process = convert_from_bytes(uploaded_file.getvalue())
+                    try:                        images_to_process = convert_from_bytes(uploaded_file.getvalue())
                     except Exception as e:
                         st.error(f"فشل تحويل ملف الـ PDF. تأكد من تثبيت Poppler. الخطأ: {e}")
             else:
@@ -344,21 +312,21 @@ def main():
                         processed_image = preprocess_image_for_ocr(image)
                     
                     text_from_page = ""
-                    with st.spinner(f"⏳ المحرك المتقدم (EasyOCR) يحلل صفحة {i+1}. يرجى الانتظار..."):
+                    with st.spinner(f"⏳ المحرك المتقدم (EasyOCR) يحلل صفحة {i+1}..."):
                         try:
-                            reader = load_ocr_models()
-                            if reader:
-                                buf = io.BytesIO()
-                                processed_image.convert("RGB").save(buf, format='PNG')
-                                text_from_page = "\n".join(reader.readtext(buf.getvalue(), detail=0, paragraph=True))
-                        except Exception:
+                            buf = io.BytesIO()
+                            processed_image.convert("RGB").save(buf, format='PNG')
+                            text_from_page = "\n".join(reader.readtext(buf.getvalue(), detail=0, paragraph=True))
+                        except Exception as e:
+                            st.warning(f"حدث خطأ أثناء استخدام EasyOCR: {e}")
                             pass
                 
                     if not text_from_page.strip():
                         with st.spinner(f"⏳ المحرك السريع (Tesseract) يحاول تحليل صفحة {i+1}..."):
                             try:
                                 text_from_page = pytesseract.image_to_string(processed_image, lang='eng+ara')
-                            except Exception:
+                            except Exception as e:
+                                st.warning(f"حدث خطأ أثناء استخدام Tesseract: {e}")
                                 pass
                     
                     if text_from_page.strip():
@@ -372,7 +340,7 @@ def main():
                     st.subheader("📜 النص الكامل المستخرج من جميع الصفحات")
                     st.text_area("النص:", all_text, height=300)
                     
-                    with st.spinner("🧠 العقل الذكي يحلل النص باستخدام البحث الضبابي..."):
+                    with st.spinner("🧠 العقل الذكي يحلل النص..."):
                         final_results = analyze_text_with_fuzzy_matching(all_text, KNOWLEDGE_BASE)
                     
                     display_results(final_results)
@@ -413,36 +381,7 @@ def main():
                     st.success(f"✅ التشخيص الأولي المحتمل هو: **{prediction[0]}**")
                     st.warning("⚠️ هذا التشخيص هو تنبؤ أولي ولا يغني عن استشارة الطبيب.")
 
-    elif mode == "💓 تحليل تخطيط القلب (ECG)":
-        st.header("💓 محلل إشارات تخطيط القلب (ECG)")
-        st.markdown("اختر إشارة ECG تجريبية لتحليلها بواسطة شبكة عصبونية مدربة.")
-        
-        ecg_model, ecg_signals = load_ecg_analyzer()
-        
-        if ecg_model is None or ecg_signals is None:
-            st.error("❌ خطأ: لم يتم العثور على ملفات محلل ECG (`ecg_classifier_model.h5` أو `sample_ecg_signals.npy`).")
-        else:
-            signal_type = st.selectbox("اختر إشارة ECG لتجربتها:", ("نبضة طبيعية", "نبضة غير طبيعية"))
-            selected_signal = ecg_signals['normal'] if signal_type == "نبضة طبيعية" else ecg_signals['abnormal']
-            
-            st.subheader("📈 الإشارة المختارة")
-            plot_signal(selected_signal, f"إشارة: {signal_type}")
-            
-            if st.button("🧠 تحليل الإشارة", type="primary"):
-                with st.spinner("⏳ الشبكة العصبونية تحلل الإشارة..."):
-                    signal_for_prediction = np.expand_dims(np.expand_dims(selected_signal, axis=0), axis=-1)
-                    prediction_value = ecg_model.predict(signal_for_prediction)[0][0]
-                    
-                    result_class = "نبضة طبيعية" if prediction_value < 0.5 else "نبضة غير طبيعية"
-                    confidence = 1 - prediction_value if prediction_value < 0.5 else prediction_value
-
-                if result_class == "نبضة طبيعية":
-                    st.success(f"**التشخيص:** {result_class}")
-                else:
-                    st.error(f"**التشخيص:** {result_class}")
-                
-                st.metric(label="درجة الثقة", value=f"{confidence:.2%}")
-                st.warning("⚠️ هذا التحليل هو مثال توضيحي ولا يغني عن تشخيص طبيب قلب مختص.")
+    # قسم ECG غير موجود في هذه النسخة التشخيصية
 
     elif mode == "🩹 تقييم الأعراض والنصائح":
         st.header("🩹 تقييم الأعراض والنصائح الأولية")
